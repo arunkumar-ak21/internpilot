@@ -10,7 +10,7 @@
 |-------|-------------|--------|---------|-----------|
 | 0 | Repository + Architecture + Contracts | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 1 | Backend / Frontend Skeleton | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 2 | Lab 1 — Agent vs Chatbot | ⬜ Not Started | — | — |
+| 2 | Lab 1 — Agent vs Chatbot | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 3 | Lab 2 — Tool-Using Agent | ⬜ Not Started | — | — |
 | 4 | Resume Ingestion | ⬜ Not Started | — | — |
 | 5 | Opportunity Provider Abstraction | ⬜ Not Started | — | — |
@@ -84,7 +84,11 @@
 - Agent determines next action
 - Workflow is observable
 
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
+
+**Verified implementation:** SQLite-persisted conversation state, structured
+search intent extraction, clarification for missing role/location, conditional
+`clarify`/`search` routing, and an audit event for every coordinator decision.
 
 ---
 
