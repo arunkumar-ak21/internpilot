@@ -13,7 +13,7 @@
 | 2 | Lab 1 — Agent vs Chatbot | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 3 | Lab 2 — Tool-Using Agent | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 4 | Resume Ingestion | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 5 | Opportunity Provider Abstraction | ⬜ Not Started | — | — |
+| 5 | Opportunity Provider Abstraction | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 6 | Lab 3 — Internship Research Skill | ⬜ Not Started | — | — |
 | 7 | Lab 4 — Memory & Retrieval | ⬜ Not Started | — | — |
 | 8 | Lab 5 — MCP-Style Connector | ⬜ Not Started | — | — |
@@ -149,3 +149,17 @@ as mock rather than presented as real opportunities.
 - Calls logged/auditable
 
 **Status:** ⬜ Not Started
+
+---
+
+### Phase 5 — Opportunity Provider Abstraction
+**Goal:** Provider boundary for opportunity acquisition  
+**Key Acceptance Criteria:**
+- API independence
+- Multi-source support
+- Testable mock
+- Concrete provider implemented (Adzuna)
+
+**Status:** ✅ Complete
+
+**Verified implementation:** Created an `OpportunityProvider` base interface with `SearchCriteria` and `RawOpportunity`. Implemented `MockOpportunityProvider` and `AdzunaProvider`. Created `factory.py` to decouple the agent tools from the specific provider class. Tools like `opportunity_search.py` now use `get_provider()` which reads from environment settings. All unit tests pass, ensuring that HTTP calls fail gracefully and results are properly normalized to the base entity structure.

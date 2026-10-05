@@ -44,6 +44,13 @@ class Settings(BaseSettings):
         description="Database connection URL",
     )
 
+    # ---- Opportunity Providers ----
+    opportunity_provider: str = Field(
+        default="mock", description="Configured opportunity provider (mock, adzuna)"
+    )
+    adzuna_app_id: str = Field(default="", description="Adzuna App ID")
+    adzuna_app_key: str = Field(default="", description="Adzuna App Key")
+
     # ---- Frontend ----
     frontend_port: int = Field(default=5173, description="Frontend dev server port")
     frontend_url: str = Field(
