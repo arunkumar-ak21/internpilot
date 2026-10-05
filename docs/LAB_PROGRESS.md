@@ -12,7 +12,7 @@
 | 1 | Backend / Frontend Skeleton | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 2 | Lab 1 — Agent vs Chatbot | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 3 | Lab 2 — Tool-Using Agent | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 4 | Resume Ingestion | ⬜ Not Started | — | — |
+| 4 | Resume Ingestion | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 5 | Opportunity Provider Abstraction | ⬜ Not Started | — | — |
 | 6 | Lab 3 — Internship Research Skill | ⬜ Not Started | — | — |
 | 7 | Lab 4 — Memory & Retrieval | ⬜ Not Started | — | — |

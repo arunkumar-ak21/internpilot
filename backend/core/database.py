@@ -26,6 +26,16 @@ CREATE TABLE IF NOT EXISTS audit_events (
     details_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS resumes (
+    resume_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    extracted_text TEXT,
+    parsed_profile_json TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 

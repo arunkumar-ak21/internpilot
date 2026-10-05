@@ -136,7 +136,7 @@ schema, validation rules, and error behavior.
 
 | Tool | Phase | Status |
 |------|-------|--------|
-| read_resume | 2 | ⬜ Not Started |
+| read_resume | 2 | ✅ TXT reader implemented; upload ingestion supports TXT/PDF/DOCX |
 | get_candidate_profile | 2 | ⬜ Not Started |
 | update_candidate_profile | 2 | ⬜ Not Started |
 | get_preferences | 2 | ⬜ Not Started |
