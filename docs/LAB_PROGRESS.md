@@ -14,7 +14,7 @@
 | 3 | Lab 2 — Tool-Using Agent | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 4 | Resume Ingestion | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 5 | Opportunity Provider Abstraction | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 6 | Lab 3 — Internship Research Skill | ⬜ Not Started | — | — |
+| 6 | Lab 3 — Internship Research Skill | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 7 | Lab 4 — Memory & Retrieval | ⬜ Not Started | — | — |
 | 8 | Lab 5 — MCP-Style Connector | ⬜ Not Started | — | — |
 | 9 | End-to-End Lab 1–5 Demo | ⬜ Not Started | — | — |
@@ -111,7 +111,7 @@ as mock rather than presented as real opportunities.
 
 ---
 
-### Lab 3 — Skill Creation
+### Lab 3 — Internship Research Skill
 **Goal:** Create reusable Internship Research Skill  
 **Key Acceptance Criteria:**
 - Clear input/output schema
@@ -120,7 +120,9 @@ as mock rather than presented as real opportunities.
 - Error handling
 - Documented contract
 
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
+
+**Verified implementation:** Created `backend/skills/internship_research.py` defining the `InternshipResearchSkill` class. This encapsulates a LangChain pipeline using `ChatOllama` and `PydanticOutputParser` to reliably extract structured `ResearchResult` instances from raw `Opportunity` listings. Handles failure elegantly (fallback mode with zero confidence). Unit tested (using isolated mocks) to ensure proper interaction and failure mitigation.
 
 ---
 
