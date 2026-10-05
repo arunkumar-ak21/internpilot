@@ -36,6 +36,18 @@ CREATE TABLE IF NOT EXISTS resumes (
     parsed_profile_json TEXT,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS candidate_preferences (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    target_roles_json TEXT,
+    locations_json TEXT,
+    work_modes_json TEXT,
+    minimum_stipend INTEGER,
+    duration_preferences TEXT,
+    availability TEXT,
+    additional_constraints TEXT,
+    updated_at TEXT NOT NULL
+);
 """
 
 

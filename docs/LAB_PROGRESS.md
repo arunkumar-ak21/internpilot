@@ -15,7 +15,7 @@
 | 4 | Resume Ingestion | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 5 | Opportunity Provider Abstraction | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 6 | Lab 3 — Internship Research Skill | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 7 | Lab 4 — Memory & Retrieval | ⬜ Not Started | — | — |
+| 7 | Lab 4 — Memory & Retrieval | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 8 | Lab 5 — MCP-Style Connector | ⬜ Not Started | — | — |
 | 9 | End-to-End Lab 1–5 Demo | ⬜ Not Started | — | — |
 
@@ -135,7 +135,13 @@ as mock rather than presented as real opportunities.
 - Data ownership clear
 - Retrieval behavior testable
 
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
+
+**Verified implementation:** 
+- Added `candidate_preferences` table in `backend/core/database.py`.
+- Created `backend/repositories/preference_repository.py` for persistent CRUD.
+- Implemented `MemoryManager` (`backend/skills/memory_manager.py`) to extract and merge preferences using `ChatOllama`.
+- Integrated memory retrieval and injection into `backend/api/agent.py`. The coordinator now starts with retrieved context (e.g., target role from previous sessions), skipping unnecessary clarification. Unit tested in `tests/unit/test_memory.py` and `tests/unit/test_api_agent.py`.
 
 ---
 
