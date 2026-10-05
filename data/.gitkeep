@@ -1,0 +1,7 @@
+# This directory stores local data:
+# - SQLite database files
+# - Uploaded resume files (in uploads/)
+# - Processed outputs
+#
+# Files here are NOT committed to version control.
+# See .gitignore for exclusion rules.

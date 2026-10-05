@@ -1,0 +1,60 @@
+# =============================================
+# InternPilot — .gitignore
+# =============================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# ---- Node / Frontend ----
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# ---- Environment & Secrets ----
+.env
+.env.local
+.env.*.local
+
+# ---- IDE / Editor ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Database ----
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Testing ----
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# ---- Misc ----
+*.bak
+*.tmp
