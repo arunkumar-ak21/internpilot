@@ -140,9 +140,9 @@ schema, validation rules, and error behavior.
 | get_candidate_profile | 2 | ⬜ Not Started |
 | update_candidate_profile | 2 | ⬜ Not Started |
 | get_preferences | 2 | ⬜ Not Started |
-| search_opportunities | 3 | ⬜ Not Started |
+| search_opportunities | 3 | ✅ Mock provider implemented |
 | normalize_opportunity | 3 | ⬜ Not Started |
 | check_eligibility | 3 | ⬜ Not Started |
 | calculate_match_score | 3 | ⬜ Not Started |
 | request_human_approval | 3+ | ⬜ Not Started |
-| create_audit_event | 2 | ⬜ Not Started |
+| create_audit_event | 2 | ✅ Implemented internally for Lab 1–2 actions |

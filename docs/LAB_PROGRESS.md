@@ -11,7 +11,7 @@
 | 0 | Repository + Architecture + Contracts | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 1 | Backend / Frontend Skeleton | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 2 | Lab 1 — Agent vs Chatbot | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 3 | Lab 2 — Tool-Using Agent | ⬜ Not Started | — | — |
+| 3 | Lab 2 — Tool-Using Agent | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 4 | Resume Ingestion | ⬜ Not Started | — | — |
 | 5 | Opportunity Provider Abstraction | ⬜ Not Started | — | — |
 | 6 | Lab 3 — Internship Research Skill | ⬜ Not Started | — | — |
@@ -102,7 +102,12 @@ search intent extraction, clarification for missing role/location, conditional
 - Failures handled
 - No fake tool calls
 
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
+
+**Verified implementation:** Safe arithmetic tool, upload-directory constrained
+text-resume reader, and validated opportunity search via the mock development
+provider. Each endpoint produces an audit event; listings are explicitly marked
+as mock rather than presented as real opportunities.
 
 ---
 
