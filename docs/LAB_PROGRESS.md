@@ -16,7 +16,7 @@
 | 5 | Opportunity Provider Abstraction | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 6 | Lab 3 — Internship Research Skill | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 7 | Lab 4 — Memory & Retrieval | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 8 | Lab 5 — MCP-Style Connector | ⬜ Not Started | — | — |
+| 8 | Lab 5 — MCP-Style Connector | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 9 | End-to-End Lab 1–5 Demo | ⬜ Not Started | — | — |
 
 ---
@@ -156,7 +156,14 @@ as mock rather than presented as real opportunities.
 - Errors propagate correctly
 - Calls logged/auditable
 
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
+
+**Verified implementation:** 
+- Created `backend/connectors/base.py` defining the `Connector` protocol.
+- Created `FileConnector` (`file_connector.py`) with strict path traversal protection preventing access outside `UPLOADS_DIR`.
+- Created `DatabaseConnector` (`db_connector.py`) exposing restricted table reads and predefined queries (rejecting arbitrary SQL and writes).
+- Created `APIConnector` (`api_connector.py`) wrapping the opportunity provider abstraction.
+- Verified boundary enforcement (permission errors, path isolation, validation) via `tests/unit/test_connectors.py`.
 
 ---
 

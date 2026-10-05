@@ -110,7 +110,7 @@ Provides controlled access to external APIs (opportunity providers).
 
 | Connector | Lab | Status |
 |-----------|-----|--------|
-| FileConnector | Lab 5 (Phase 8) | ⬜ Not Started |
-| DatabaseConnector | Lab 5 (Phase 8) | ⬜ Not Started |
-| APIConnector | Lab 5 (Phase 8) | ⬜ Not Started |
-| Unified connector interface | Lab 5 (Phase 8) | ⬜ Not Started |
+| FileConnector | Lab 5 (Phase 8) | ✅ Complete |
+| DatabaseConnector | Lab 5 (Phase 8) | ✅ Complete |
+| APIConnector | Lab 5 (Phase 8) | ✅ Complete |
+| Unified connector interface | Lab 5 (Phase 8) | ✅ Complete |
