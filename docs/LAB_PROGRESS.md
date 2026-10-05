@@ -17,7 +17,7 @@
 | 6 | Lab 3 — Internship Research Skill | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 7 | Lab 4 — Memory & Retrieval | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 8 | Lab 5 — MCP-Style Connector | ✅ Complete | 2026-10-05 | 2026-10-05 |
-| 9 | End-to-End Lab 1–5 Demo | ⬜ Not Started | — | — |
+| 9 | End-to-End Lab 1–5 Demo | ✅ Complete | 2026-10-05 | 2026-10-05 |
 
 ---
 
@@ -166,6 +166,23 @@ as mock rather than presented as real opportunities.
 - Verified boundary enforcement (permission errors, path isolation, validation) via `tests/unit/test_connectors.py`.
 
 ---
+
+### Phase 9 — End-to-End Lab 1–5 Demo
+**Goal:** Prove integration of all subsystems  
+**Key Acceptance Criteria:**
+- Orchestrate Coordinator, Search, Resume Parser, and Memory.
+- Runnable script demonstrating the user flow.
+- Graceful degradation when external services (LLM/API) fail.
+
+**Status:** ✅ Complete
+
+**Verified implementation:** 
+- Created `scripts/demo_e2e.py` which executes the full pipeline locally.
+- Ingests mock resume using `resume_ingestion` service.
+- Extracts mock preferences using `MemoryManager` (gracefully falling back when Ollama is unavailable).
+- Resolves intent using `coordinator.py`.
+- Searches opportunities using `opportunity_search.py` and the provider abstraction.
+- Analyzes opportunities using `InternshipResearchSkill` (again, testing fallback resilience).
 
 ### Phase 5 — Opportunity Provider Abstraction
 **Goal:** Provider boundary for opportunity acquisition  

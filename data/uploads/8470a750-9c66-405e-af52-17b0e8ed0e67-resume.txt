@@ -1,0 +1,4 @@
+Arun Mokashi
+Education: B.Tech in Computer Science, MIT
+Skills: Python, TypeScript, Machine Learning, React
+Experience: Built an agentic AI system for a hackathon.
