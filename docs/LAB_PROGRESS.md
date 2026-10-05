@@ -8,8 +8,8 @@
 
 | Phase | Description | Status | Started | Completed |
 |-------|-------------|--------|---------|-----------|
-| 0 | Repository + Architecture + Contracts | 🟡 In Progress | 2026-10-05 | — |
-| 1 | Backend / Frontend Skeleton | ⬜ Not Started | — | — |
+| 0 | Repository + Architecture + Contracts | ✅ Complete | 2026-10-05 | 2026-10-05 |
+| 1 | Backend / Frontend Skeleton | ✅ Complete | 2026-10-05 | 2026-10-05 |
 | 2 | Lab 1 — Agent vs Chatbot | ⬜ Not Started | — | — |
 | 3 | Lab 2 — Tool-Using Agent | ⬜ Not Started | — | — |
 | 4 | Resume Ingestion | ⬜ Not Started | — | — |
@@ -34,23 +34,23 @@
 - [x] DATA_MODEL.md created
 - [x] AGENT_CONTRACTS.md created
 - [x] TOOL_CONTRACTS.md created
-- [ ] MEMORY_DESIGN.md
-- [ ] CONNECTOR_DESIGN.md
-- [ ] SECURITY.md
-- [ ] TESTING.md
+- [x] MEMORY_DESIGN.md created
+- [x] CONNECTOR_DESIGN.md created
+- [x] SECURITY.md created
+- [x] TESTING.md created
 
 ### Milestone: Architecture Decision Records
-- [ ] ADR-001: Why LangGraph for orchestration
-- [ ] ADR-002: Why SQLite initially
-- [ ] ADR-003: Why provider abstraction
-- [ ] ADR-004: Why deterministic eligibility
-- [ ] ADR-005: Why human approval gates
-- [ ] ADR-006: Why MCP-style connectors
+- [x] ADR-001: Why LangGraph for orchestration
+- [x] ADR-002: Why SQLite initially
+- [x] ADR-003: Why provider abstraction
+- [x] ADR-004: Why deterministic eligibility
+- [x] ADR-005: Why human approval gates
+- [x] ADR-006: Why MCP-style connectors
 
 ### Milestone: Project Structure
-- [ ] Backend folder structure created
-- [ ] Frontend folder structure created
-- [ ] Test folder structure created
+- [x] Backend folder structure created
+- [x] Frontend folder structure created
+- [x] Test folder structure created
 
 ### Milestone: Environment Verification
 - [x] Python 3.13 available
@@ -58,10 +58,18 @@
 - [x] npm 11.13 available
 - [x] Git 2.54 available
 - [x] Ollama 0.35 available
-- [ ] Ollama model pulled
-- [ ] Python virtual environment created
-- [ ] Backend dependencies installed
-- [ ] Frontend dependencies installed
+- [ ] Ollama model pulled (deferred to Phase 2)
+- [x] Python 3.13 virtual environment created (`backend/.venv-native`)
+- [x] Backend dependencies installed
+- [x] Frontend dependencies installed
+
+### Milestone: Backend / Frontend Skeleton
+- [x] FastAPI application factory and lifecycle added
+- [x] SQLite initialization and readiness check added
+- [x] Versioned health and readiness endpoints added
+- [x] React + TypeScript + Vite frontend scaffold added
+- [x] Backend lint and tests pass (4 tests)
+- [x] Frontend production build passes
 
 ---
 

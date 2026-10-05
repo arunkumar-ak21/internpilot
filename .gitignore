@@ -13,8 +13,11 @@ build/
 .eggs/
 *.whl
 .venv/
+.venv-native/
+.venv-current/
 venv/
 env/
+.uv-cache/
 
 # ---- Node / Frontend ----
 node_modules/
@@ -53,6 +56,7 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+.pytest-tmp/
 .mypy_cache/
 
 # ---- Misc ----

@@ -13,8 +13,8 @@ internship through final evaluation — all in one auditable record.
 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
-| 0 | Repository + Architecture + Contracts | 🟡 In Progress |
-| 1 | Backend / Frontend skeleton | ⬜ Not Started |
+| 0 | Repository + Architecture + Contracts | ✅ Complete |
+| 1 | Backend / Frontend skeleton | ✅ Complete |
 | 2 | Lab 1 — Agent vs Chatbot | ⬜ Not Started |
 | 3 | Lab 2 — Tool-Using Agent | ⬜ Not Started |
 | 4 | Resume Ingestion | ⬜ Not Started |
@@ -23,6 +23,29 @@ internship through final evaluation — all in one auditable record.
 | 7 | Lab 4 — Memory & Retrieval | ⬜ Not Started |
 | 8 | Lab 5 — MCP-Style Connector | ⬜ Not Started |
 | 9 | End-to-End Lab 1–5 Demo | ⬜ Not Started |
+
+## Run the foundation
+
+The backend uses the native CPython environment at `backend/.venv-native`.
+
+```powershell
+.\backend\.venv-native\Scripts\uvicorn.exe backend.main:app --reload
+```
+
+The API health endpoint is `http://localhost:8000/api/v1/health`. Start the
+frontend in a second terminal:
+
+```powershell
+npm --prefix frontend run dev
+```
+
+Run verification with:
+
+```powershell
+.\backend\.venv-native\Scripts\ruff.exe check backend tests
+.\backend\.venv-native\Scripts\pytest.exe -q
+npm --prefix frontend run build
+```
 
 ---
 
