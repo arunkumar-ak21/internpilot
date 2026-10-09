@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import UTC, datetime
 from io import BytesIO
@@ -11,23 +10,16 @@ from pathlib import Path
 from docx import Document
 from PyPDF2 import PdfReader
 
-from backend.core.config import UPLOADS_DIR
+from pydantic import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from backend.core.config import get_settings, UPLOADS_DIR
 
 SUPPORTED_TYPES = {
     "text/plain": ".txt",
     "application/pdf": ".pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
 }
-import json
-from pathlib import Path
-from io import BytesIO
-from docx import Document
-from PyPDF2 import PdfReader
-from pydantic import BaseModel, Field
-from langchain_ollama import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
-from backend.core.config import get_settings
 
 def get_llm():
     settings = get_settings()
@@ -36,10 +28,10 @@ def get_llm():
         return ChatGroq(model_name=settings.llm_model, temperature=0.0, groq_api_key=settings.groq_api_key, max_retries=1, timeout=10.0)
     elif settings.llm_provider == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(model=settings.llm_model, temperature=0.0, google_api_key=settings.gemini_api_key)
+        return ChatGoogleGenerativeAI(model=settings.llm_model, temperature=0.0, google_api_key=settings.gemini_api_key, max_retries=1, timeout=10.0)
     else:
         from langchain_ollama import ChatOllama
-        return ChatOllama(model=settings.llm_model, base_url=settings.llm_base_url, temperature=0.0)
+        return ChatOllama(model=settings.llm_model, base_url=settings.llm_base_url, temperature=0.0, num_predict=512)
 
 def sanitize_filename(name: str) -> str:
     clean = Path(name).name
@@ -71,13 +63,16 @@ def parse_profile(text: str) -> dict:
         ("user", "Resume Text:\n{text}")
     ])
     
+    # Truncate text to avoid HTTP 413 payload limits on large PDFs
+    truncated_text = text[:4000] if text else ""
+    
     chain = prompt | llm | parser
     
     try:
         # We run it synchronously since this is called in a standard function for now, 
         # or we could make parse_profile async. Assuming standard function for this flow.
         # However, to avoid blocking, normally this would be async.
-        extracted = chain.invoke({"text": text, "format_instructions": parser.get_format_instructions()})
+        extracted = chain.invoke({"text": truncated_text, "format_instructions": parser.get_format_instructions()})
         return {
             "skills": extracted.skills,
             "email": extracted.email,

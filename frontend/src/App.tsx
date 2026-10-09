@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Upload, Send, Bot, User, Briefcase, MapPin, DollarSign } from 'lucide-react';
+import { Upload, Send, Bot, User, Briefcase, MapPin, Loader2, Link } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 export function App() {
   const [messages, setMessages] = useState([
     { id: 1, type: 'agent', text: "Hello! I'm InternPilot. I can help you find, evaluate, and apply to internships. Have you uploaded your resume yet?" }
   ]);
   const [inputText, setInputText] = useState('');
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [status, setStatus] = useState<'idle' | 'searching' | 'search_completed' | 'no_results' | 'search_failed' | 'llm_unavailable'>('idle');
 
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
@@ -17,6 +20,7 @@ export function App() {
     const textToSend = inputText;
     setMessages(prev => [...prev, { id: Date.now(), type: 'user', text: textToSend }]);
     setInputText('');
+    setStatus('searching');
     
     try {
       const response = await fetch('http://localhost:8000/api/v1/agent/messages', {
@@ -30,6 +34,19 @@ export function App() {
         setSessionId(data.session_id);
       }
       
+      if (data.action === "error") {
+        setStatus('search_failed');
+      } else if (data.response?.includes("API Error") || data.response?.includes("offline")) {
+        setStatus('llm_unavailable');
+      } else if (data.opportunities && data.opportunities.length > 0) {
+        setOpportunities(data.opportunities);
+        setStatus('search_completed');
+      } else if (data.opportunities && data.opportunities.length === 0) {
+        setStatus('no_results');
+      } else {
+        setStatus('idle');
+      }
+      
       setMessages(prev => [...prev, { 
         id: Date.now(), 
         type: 'agent', 
@@ -37,6 +54,7 @@ export function App() {
       }]);
     } catch (error) {
       console.error('Error communicating with backend:', error);
+      setStatus('search_failed');
       setMessages(prev => [...prev, { 
         id: Date.now(), 
         type: 'agent', 
@@ -84,6 +102,9 @@ export function App() {
         const agentData = await agentResponse.json();
         if (agentData.session_id && !sessionId) {
           setSessionId(agentData.session_id);
+        }
+        if (agentData.opportunities && agentData.opportunities.length > 0) {
+          setOpportunities(agentData.opportunities);
         }
         setMessages(prev => [...prev, { 
           id: Date.now(), 
@@ -160,10 +181,23 @@ export function App() {
                   {msg.type === 'agent' ? <Bot size={20} color="white" /> : <User size={20} color="white" />}
                 </div>
                 <div className="bubble">
-                  {msg.text}
+                  {msg.type === 'agent' ? <ReactMarkdown>{msg.text}</ReactMarkdown> : msg.text}
                 </div>
               </motion.div>
             ))}
+            {status === 'searching' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="message agent"
+              >
+                <div className="avatar"><Bot size={20} color="white" /></div>
+                <div className="bubble" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Loader2 size={16} className="spinner" /> 
+                  Searching for opportunities...
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
         
@@ -190,12 +224,46 @@ export function App() {
       >
         <div className="opp-header">
           <h2>Discovered Opportunities</h2>
+          {status === 'searching' && <span style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>Searching...</span>}
+          {status === 'no_results' && <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>No results found</span>}
+          {status === 'search_failed' && <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>Search Failed</span>}
+          {status === 'llm_unavailable' && <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>LLM Offline</span>}
         </div>
         <div className="opp-list">
-          <div style={{ textAlign: 'center', marginTop: '40px', color: 'var(--text-secondary)' }}>
-            <Briefcase size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
-            <p>Opportunities will appear here once the agent starts searching.</p>
-          </div>
+          {opportunities.length === 0 ? (
+            <div style={{ textAlign: 'center', marginTop: '40px', color: 'var(--text-secondary)' }}>
+              <Briefcase size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+              <p>Opportunities will appear here once the agent starts searching.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {opportunities.map((opp, idx) => (
+                <div key={idx} style={{ background: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem' }}>{opp.role}</h3>
+                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+                      {opp.source === 'adzuna' ? 'Adzuna' : opp.source === 'web_search' ? 'Web Search' : opp.source}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                    <Briefcase size={16} /> <span>{opp.company}</span>
+                    <MapPin size={16} style={{ marginLeft: '8px' }} /> <span>{opp.location || 'Remote/Unknown'}</span>
+                  </div>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {opp.description}
+                  </p>
+                  {opp.application_url && (
+                    <a href={opp.application_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--accent)', color: 'white', padding: '8px 16px', borderRadius: '6px', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>
+                      <Link size={14} /> Apply Now
+                    </a>
+                  )}
+                  {!opp.application_url && (
+                    <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>No Application Link Available</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </motion.aside>
     </div>

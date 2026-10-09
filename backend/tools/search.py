@@ -1,7 +1,6 @@
 """Search tools for the Discovery Agent."""
 
 from langchain_core.tools import tool
-from duckduckgo_search import DDGS
 from backend.core.config import get_settings
 import httpx
 
@@ -38,7 +37,7 @@ def search_adzuna(role: str, location: str = "") -> str:
     if not app_id or not app_key:
         return "Error: Adzuna API keys are not configured. Use DuckDuckGo instead."
         
-    url = f"https://api.adzuna.com/v1/api/jobs/gb/search/1"
+    url = "https://api.adzuna.com/v1/api/jobs/gb/search/1"
     params = {
         "app_id": app_id,
         "app_key": app_key,

@@ -7,7 +7,6 @@ from chat history, and retrieve them to augment the conversational context.
 
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 

@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     )
     adzuna_app_id: str = Field(default="", description="Adzuna App ID")
     adzuna_app_key: str = Field(default="", description="Adzuna App Key")
+    tavily_api_key: str = Field(default="", description="Tavily API Key for Web Search")
 
     # ---- Frontend ----
     frontend_port: int = Field(default=5173, description="Frontend dev server port")

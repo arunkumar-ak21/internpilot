@@ -9,11 +9,9 @@ from typing import Literal, TypedDict, Annotated, Sequence
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from backend.services.resume_ingestion import get_llm
-from backend.tools.search import search_duckduckgo, search_adzuna
 
 
 # ==========================================
@@ -30,61 +28,107 @@ class ConversationState:
     minimum_stipend: int | None = None
     skills: list[str] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
+    opportunities: list[dict] = field(default_factory=list)
 
 class GraphState(TypedDict):
     """The internal LangGraph state passed between nodes."""
     messages: Annotated[Sequence[BaseMessage], operator.add]
     next: str
     skills: list[str]
-
+    target_role: str | None
+    location: str | None
+    opportunities: list[dict]
 
 # ==========================================
 # 2. Worker Agents (Deterministic Nodes)
 # ==========================================
 
-def discovery_node(state: GraphState):
+async def discovery_node(state: GraphState):
     """Executes the Discovery Agent in a fixed, deterministic pipeline."""
+    from backend.providers.factory import get_provider
+    from backend.providers.base import SearchCriteria
+    from langchain_core.messages import AIMessage
+    
     llm = get_llm()
     skills = state.get("skills", [])
+    target_role = state.get("target_role")
+    location = state.get("location")
     
     # 1. Deterministic Search Execution
-    query = f"{' '.join(skills[:3])} internship opportunities" if skills else "software engineering internships"
+    query_parts = []
+    if target_role:
+        query_parts.append(target_role)
+    elif skills:
+        query_parts.append(" ".join(skills[:3]))
+    else:
+        query_parts.append("software engineering")
+        
+    query_parts.append("internship")
+    query = " ".join(query_parts)
+    
+    provider = get_provider()
+    criteria = SearchCriteria(query=query, location=location, max_results=5)
     
     try:
-        # Call the search tool explicitly without agent looping
-        raw_results = search_duckduckgo.invoke({"query": query})
+        raw_results = await provider.search(criteria)
+        opportunities = []
+        for r in raw_results:
+            opp_dict = {
+                "company": r.company,
+                "role": r.role,
+                "location": r.location,
+                "description": r.description[:500] + "..." if len(r.description) > 500 else r.description,
+                "source": r.source,
+                "source_id": r.source_id,
+                "application_url": r.application_url
+            }
+            opportunities.append(opp_dict)
     except Exception as e:
-        raw_results = f"Search failed: {e}"
-        
+        opportunities = []
+        error_msg = f"Search failed: {e}"
+        print(error_msg)
+        return {"messages": [AIMessage(content=f"I tried searching for {query}, but the search provider failed or is unavailable.")], "opportunities": []}
+
+    if not opportunities:
+        return {"messages": [AIMessage(content=f"I searched for '{query}' but couldn't find any matching opportunities right now.")], "opportunities": []}
+
     # 2. Synthesis (LLM Call)
     skills_context = f"The user has the following skills: {', '.join(skills)}." if skills else ""
+    opps_text = "\n".join([f"- {o['role']} at {o['company']} ({o['location']})" for o in opportunities])
     prompt = (
         f"You are the Discovery Agent. {skills_context}\n"
-        f"I searched the web for '{query}' and found these raw results:\n\n{raw_results}\n\n"
-        "Synthesize these findings into a beautifully formatted list of 2-3 internship opportunities. "
-        "Highlight why they are a good match for the user's skills."
+        f"I searched the web for '{query}' and found these {len(opportunities)} opportunities:\n\n{opps_text}\n\n"
+        "Synthesize these findings into a short conversational summary, highlighting why they match."
     )
     
     from langchain_core.messages import SystemMessage
-    response = llm.invoke([SystemMessage(content=prompt)] + list(state["messages"]))
+    response = await llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"]))
     
-    return {"messages": [response]}
+    return {"messages": [response], "opportunities": opportunities}
 
 
-def eligibility_node(state: GraphState):
+
+async def eligibility_node(state: GraphState):
     """Executes the Eligibility Agent in a fixed, deterministic pipeline."""
     llm = get_llm()
     skills = state.get("skills", [])
+    opportunities = state.get("opportunities", [])
+    
     skills_context = f"The user has the following skills: {', '.join(skills)}." if skills else ""
+    opps_context = ""
+    if opportunities:
+        opps_text = "\n".join([f"- {o['role']} at {o['company']}" for o in opportunities])
+        opps_context = f"Here are the currently discovered opportunities:\n{opps_text}\n"
     
     prompt = (
-        f"You are the Eligibility Agent. {skills_context}\n"
+        f"You are the Eligibility Agent. {skills_context}\n{opps_context}\n"
         "Your responsibility is to evaluate if the candidate is a good fit "
-        "for the jobs currently discussed in the conversation. Be highly analytical. Highlight missing skills."
+        "for the jobs currently discussed. Be highly analytical. Highlight missing skills. "
+        "Return your evaluation as a conversational response."
     )
     
     from langchain_core.messages import SystemMessage
-    response = llm.invoke([SystemMessage(content=prompt)] + list(state["messages"]))
+    response = await llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"]))
     return {"messages": [response]}
 
 
@@ -95,7 +139,7 @@ class RouteSchema(BaseModel):
     )
 
 
-def supervisor_node(state: GraphState):
+async def supervisor_node(state: GraphState):
     """The master orchestrator that decides which agent works next."""
     llm = get_llm()
     
@@ -118,14 +162,14 @@ def supervisor_node(state: GraphState):
     router_llm = llm.with_structured_output(RouteSchema)
     
     try:
-        decision = router_llm.invoke(messages)
+        decision = await router_llm.ainvoke(messages)
         next_step = decision.next
         
         # If the Supervisor decides to FINISH immediately but there is no AI response in the state,
         # we ask the LLM to generate a direct conversational answer.
         from langchain_core.messages import HumanMessage
         if next_step == "FINISH" and isinstance(state["messages"][-1], HumanMessage):
-            conversational_response = llm.invoke(messages)
+            conversational_response = await llm.ainvoke(messages)
             return {"next": "FINISH", "messages": [conversational_response]}
             
         return {"next": next_step}
@@ -176,36 +220,49 @@ class CoordinatorResult:
     action: str
     response: str
     missing_fields: list[str]
+    opportunities: list[dict] = field(default_factory=list)
 
 
 def new_state(session_id: str | None = None) -> ConversationState:
     return ConversationState(session_id=session_id or str(uuid.uuid4()), trace_id=str(uuid.uuid4()))
 
 
-def coordinate(message: str, state: ConversationState) -> CoordinatorResult:
+async def coordinate(message: str, state: ConversationState) -> CoordinatorResult:
     """Entry point for the FastAPI route. Wraps the LangGraph execution."""
     state.messages.append(message)
     
     # Reconstruct message history for LangGraph (mocking previous turns for simplicity)
-    graph_messages = [HumanMessage(content=message)]
-    initial_graph_state = {"messages": graph_messages, "next": "", "skills": state.skills}
+    graph_messages = [HumanMessage(content=msg) for msg in state.messages[-5:]] # Keep some history
+    initial_graph_state = {
+        "messages": graph_messages, 
+        "next": "", 
+        "skills": state.skills,
+        "target_role": state.target_role,
+        "location": state.location,
+        "opportunities": state.opportunities
+    }
     
     try:
         # Execute the graph
-        result = app.invoke(initial_graph_state)
+        result = await app.ainvoke(initial_graph_state)
         # The final response is the last message in the state
         final_message = result["messages"][-1].content
         action = result.get("next", "FINISH")
+        opps = result.get("opportunities", [])
+        if opps:
+            state.opportunities = opps
     except Exception as e:
         print(f"Graph Error: {e}")
         final_message = "I encountered an error while orchestrating the agents. Please try again."
         action = "error"
+        opps = []
         
     return CoordinatorResult(
         state=state,
         action=action,
         response=final_message,
         missing_fields=[],
+        opportunities=state.opportunities
     )
 
 
