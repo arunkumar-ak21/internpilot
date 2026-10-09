@@ -13,7 +13,7 @@ router = APIRouter(prefix="/resumes", tags=["resumes"])
 @router.post("/upload")
 async def upload_resume(student_id: str = Form(...), file: UploadFile = File(...)) -> dict:
     try:
-        payload = resume_payload(student_id, file.filename or "", await file.read(), file.content_type or "")
+        payload = await resume_payload(student_id, file.filename or "", await file.read(), file.content_type or "")
         await ResumeRepository(get_settings().database_url).save(payload)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

@@ -53,7 +53,7 @@ class ResumeExtraction(BaseModel):
     email: str | None = Field(description="The email address of the candidate, if found.")
     education: list[str] = Field(description="List of degrees or educational institutions found.")
 
-def parse_profile(text: str) -> dict:
+async def parse_profile(text: str) -> dict:
     """Extract explicit facts from the resume using LangChain."""
     parser = PydanticOutputParser(pydantic_object=ResumeExtraction)
     llm = get_llm()
@@ -69,10 +69,8 @@ def parse_profile(text: str) -> dict:
     chain = prompt | llm | parser
     
     try:
-        # We run it synchronously since this is called in a standard function for now, 
-        # or we could make parse_profile async. Assuming standard function for this flow.
-        # However, to avoid blocking, normally this would be async.
-        extracted = chain.invoke({"text": truncated_text, "format_instructions": parser.get_format_instructions()})
+        # We run it asynchronously to avoid blocking the event loop
+        extracted = await chain.ainvoke({"text": truncated_text, "format_instructions": parser.get_format_instructions()})
         return {
             "skills": extracted.skills,
             "email": extracted.email,
@@ -97,7 +95,7 @@ def store_original(file_name: str, content: bytes) -> Path:
     return stored
 
 
-def resume_payload(student_id: str, file_name: str, content: bytes, content_type: str) -> dict:
+async def resume_payload(student_id: str, file_name: str, content: bytes, content_type: str) -> dict:
     expected_suffix = SUPPORTED_TYPES.get(content_type)
     if not expected_suffix or Path(file_name).suffix.lower() != expected_suffix:
         raise ValueError("File extension and content type must be a supported matching pair")
@@ -105,4 +103,5 @@ def resume_payload(student_id: str, file_name: str, content: bytes, content_type
         raise ValueError("Resume must be between 1 byte and 10 MB")
     extracted = extract_text(content, content_type)
     path = store_original(file_name, content)
-    return {"resume_id": str(uuid.uuid4()), "student_id": student_id, "file_name": sanitize_filename(file_name), "file_path": str(path), "version": 1, "extracted_text": extracted, "parsed_profile": parse_profile(extracted), "created_at": datetime.now(UTC).isoformat()}
+    parsed = await parse_profile(extracted)
+    return {"resume_id": str(uuid.uuid4()), "student_id": student_id, "file_name": sanitize_filename(file_name), "file_path": str(path), "version": 1, "extracted_text": extracted, "parsed_profile": parsed, "created_at": datetime.now(UTC).isoformat()}
