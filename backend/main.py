@@ -11,6 +11,7 @@ from backend.api.health import router as health_router
 from backend.api.agent import router as agent_router
 from backend.api.tools import router as tools_router
 from backend.api.resumes import router as resumes_router
+from backend.api.workflows import router as workflows_router
 from backend.core.config import get_settings
 from backend.core.database import initialize_database
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(agent_router, prefix="/api/v1")
     app.include_router(tools_router, prefix="/api/v1")
     app.include_router(resumes_router, prefix="/api/v1")
+    app.include_router(workflows_router, prefix="/api/v1")
     return app
 
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, Send, Bot, User, Briefcase, MapPin, Loader2, Link } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -10,8 +10,52 @@ export function App() {
   const [inputText, setInputText] = useState('');
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [status, setStatus] = useState<'idle' | 'searching' | 'search_completed' | 'no_results' | 'search_failed' | 'llm_unavailable'>('idle');
+  const [workflowStatusMsg, setWorkflowStatusMsg] = useState('');
 
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let interval: any;
+    if (workflowId && status === 'searching') {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`http://localhost:8000/api/v1/workflows/${workflowId}`);
+          if (res.ok) {
+            const data = await res.json();
+            
+            if (data.status === 'completed' || data.status === 'partial_success') {
+              setStatus('search_completed');
+              const oppsRes = await fetch(`http://localhost:8000/api/v1/workflows/${workflowId}/opportunities`);
+              if (oppsRes.ok) {
+                const oppsData = await oppsRes.json();
+                setOpportunities(oppsData.opportunities || []);
+                setMessages(prev => [...prev, { 
+                  id: Date.now(), 
+                  type: 'agent', 
+                  text: `I have discovered ${oppsData.opportunities?.length || 0} matching internship opportunities for you.` 
+                }]);
+              }
+              clearInterval(interval);
+            } else if (data.status === 'no_results') {
+              setStatus('no_results');
+              clearInterval(interval);
+            } else if (data.status === 'failed' || data.status === 'search_failed' || data.status === 'cancelled') {
+              setStatus('search_failed');
+              clearInterval(interval);
+            } else {
+              setWorkflowStatusMsg(`Workflow running: ${data.current_stage.replace('_', ' ')}...`);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }, 2000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [workflowId, status]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,30 +133,13 @@ export function App() {
       setMessages(prev => [...prev, { 
         id: Date.now(), 
         type: 'agent', 
-        text: `Successfully uploaded ${file.name} and extracted your profile. I am now proactively searching for opportunities that match your skills...` 
+        text: `Successfully uploaded ${file.name} and extracted your profile. Automatic background workflow started...` 
       }]);
       
-      // Proactively trigger the agent to search for jobs based on the new resume
-      try {
-        const agentResponse = await fetch('http://localhost:8000/api/v1/agent/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: "I just uploaded my resume. Please search for internships that match my skills.", session_id: sessionId, student_id: 'demo-student-123' })
-        });
-        const agentData = await agentResponse.json();
-        if (agentData.session_id && !sessionId) {
-          setSessionId(agentData.session_id);
-        }
-        if (agentData.opportunities && agentData.opportunities.length > 0) {
-          setOpportunities(agentData.opportunities);
-        }
-        setMessages(prev => [...prev, { 
-          id: Date.now(), 
-          type: 'agent', 
-          text: agentData.response || "I couldn't find any matching opportunities right now."
-        }]);
-      } catch (err) {
-        console.error('Proactive search failed:', err);
+      if (data.workflow_id) {
+        setWorkflowId(data.workflow_id);
+        setStatus('searching');
+        setWorkflowStatusMsg("Starting autonomous workflow...");
       }
 
     } catch (error) {
@@ -194,7 +221,7 @@ export function App() {
                 <div className="avatar"><Bot size={20} color="white" /></div>
                 <div className="bubble" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Loader2 size={16} className="spinner" /> 
-                  Searching for opportunities...
+                  {workflowStatusMsg || "Searching for opportunities..."}
                 </div>
               </motion.div>
             )}
@@ -224,7 +251,7 @@ export function App() {
       >
         <div className="opp-header">
           <h2>Discovered Opportunities</h2>
-          {status === 'searching' && <span style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>Searching...</span>}
+          {status === 'searching' && <span style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>{workflowStatusMsg || 'Searching...'}</span>}
           {status === 'no_results' && <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>No results found</span>}
           {status === 'search_failed' && <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>Search Failed</span>}
           {status === 'llm_unavailable' && <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>LLM Offline</span>}
@@ -259,6 +286,12 @@ export function App() {
                   )}
                   {!opp.application_url && (
                     <span style={{ fontSize: '0.8rem', color: '#ff4444' }}>No Application Link Available</span>
+                  )}
+                  {opp.overall_score && (
+                    <div style={{ marginTop: '12px', padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', fontSize: '0.85rem' }}>
+                      <strong style={{ color: 'var(--accent)' }}>Match Reasoning:</strong>
+                      <p style={{ marginTop: '4px', marginBottom: 0, color: 'var(--text-secondary)' }}>{opp.explanation}</p>
+                    </div>
                   )}
                 </div>
               ))}

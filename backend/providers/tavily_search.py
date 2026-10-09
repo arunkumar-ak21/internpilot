@@ -47,18 +47,51 @@ class TavilyProvider(OpportunityProvider):
             except httpx.HTTPStatusError as e:
                 raise RuntimeError(f"Tavily returned HTTP {e.response.status_code}") from e
                 
-        results = []
-        for result in data.get("results", []):
-            results.append(
-                RawOpportunity(
-                    source="web_search",
-                    source_id=result.get("url"),
-                    company="Company (Extracted via Web)",
-                    role=result.get("title", "Internship Opportunity"),
-                    location=criteria.location,
-                    description=result.get("content", ""),
-                    application_url=result.get("url")
-                )
+        from backend.services.resume_ingestion import get_llm
+        from langchain_core.messages import SystemMessage
+        import asyncio
+        llm = get_llm()
+
+        async def parse_result(result):
+            snippet = result.get("content", "")
+            title = result.get("title", "")
+            url = result.get("url", "")
+            
+            prompt = (
+                f"Extract the company name and internship role from this web result.\n"
+                f"Title: {title}\nSnippet: {snippet}\n\n"
+                f"If it's NOT a real internship posting (e.g., an article, advice page), reply exactly with 'REJECT'.\n"
+                f"Otherwise, reply exactly in this format: CompanyName|RoleName\n"
+                f"If company is unknown, use 'Unknown'. If role is unknown, use 'Unknown'."
             )
+            try:
+                # Wrap in timeout just in case
+                response = await asyncio.wait_for(llm.ainvoke([SystemMessage(content=prompt)]), timeout=5.0)
+                text = response.content.strip()
+                if text == "REJECT" or "|" not in text:
+                    return None
+                    
+                company, role = text.split("|", 1)
+                
+                return RawOpportunity(
+                    source="Tavily Web Search",
+                    source_id=url,
+                    company=company.strip() or "Unknown",
+                    role=role.strip() or "Unknown",
+                    location=criteria.location,
+                    description=snippet,
+                    application_url=url
+                )
+            except Exception as e:
+                print(f"Tavily parsing error: {e}")
+                return None
+
+        parse_tasks = [parse_result(r) for r in data.get("results", [])]
+        parsed_results = await asyncio.gather(*parse_tasks, return_exceptions=True)
+        
+        results = []
+        for r in parsed_results:
+            if isinstance(r, RawOpportunity):
+                results.append(r)
             
         return results

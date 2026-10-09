@@ -22,6 +22,22 @@ class RawOpportunity:
     application_url: str | None = None
 
 
+@dataclass
+class ProviderOutcomeResult:
+    provider_name: str
+    attempted: bool
+    result_count: int
+    status: str
+    error: str | None = None
+
+@dataclass
+class SearchResult:
+    status: str # success, no_results, partial_success, search_failed
+    results: list[RawOpportunity]
+    provider_outcomes: list[ProviderOutcomeResult]
+    errors: list[str]
+
+
 class OpportunityProvider(ABC):
     @abstractmethod
     async def search(self, criteria: SearchCriteria) -> list[RawOpportunity]:

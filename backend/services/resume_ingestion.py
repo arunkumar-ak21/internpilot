@@ -49,47 +49,107 @@ def extract_text(content: bytes, content_type: str) -> str:
         return "\n".join(paragraph.text for paragraph in Document(BytesIO(content)).paragraphs)
     raise ValueError("Unsupported resume format")
 
+class Project(BaseModel):
+    name: str = Field(description="Project name")
+    technologies: list[str] = Field(description="Technologies used in this project")
+
 class ResumeExtraction(BaseModel):
-    skills: list[str] = Field(description="A list of technical and soft skills extracted from the resume.")
+    skills: list[str] = Field(description="A list of technical and soft skills extracted from the resume with evidence.")
     email: str | None = Field(description="The email address of the candidate, if found.")
-    education: list[str] = Field(description="List of degrees or educational institutions found.")
+    education: list[str] = Field(default_factory=list, description="List of degrees or educational institutions found.")
+    projects: list[Project] = Field(default_factory=list, description="Projects and their technologies")
+    experience: list[str] = Field(default_factory=list, description="Work or internship experience")
+    certifications: list[str] = Field(default_factory=list, description="Certifications")
 
 async def parse_profile(text: str) -> dict:
     """Extract explicit facts from the resume using LangChain."""
     parser = PydanticOutputParser(pydantic_object=ResumeExtraction)
     llm = get_llm()
+    settings = get_settings()
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert HR recruiter AI. Extract the exact skills, email, and education from the resume text provided. Do not invent any information. If something is missing, leave it empty or null.\n\n{format_instructions}"),
+        ("system", "You are an expert HR recruiter AI. Extract the exact skills, email, projects, experience, and education from the resume text provided. Do not invent any information. If something is missing, leave it empty or null.\n\n{format_instructions}"),
         ("user", "Resume Text:\n{text}")
     ])
     
-    # Truncate text to avoid HTTP 413 payload limits on large PDFs
-    truncated_text = text[:4000] if text else ""
-    
     chain = prompt | llm | parser
     
-    try:
-        # We run it asynchronously to avoid blocking the event loop
-        # Wrap in wait_for to enforce a strict timeout in case the LLM is offline or hanging
-        extracted = await asyncio.wait_for(
-            chain.ainvoke({"text": truncated_text, "format_instructions": parser.get_format_instructions()}),
-            timeout=3.0
-        )
-        return {
-            "skills": extracted.skills,
-            "email": extracted.email,
-            "education": extracted.education,
-            "parser": "langchain-ollama"
-        }
-    except Exception as e:
-        print(f"LLM Parsing failed: {e}")
+    # Bounded chunk extraction
+    max_chunk_len = 10000
+    chunks = []
+    if len(text) > max_chunk_len * 2:
+        # Use first 10k and last 10k chars for very long resumes
+        chunks = [text[:max_chunk_len], text[-max_chunk_len:]]
+    elif len(text) > max_chunk_len:
+        chunks = [text[:max_chunk_len], text[max_chunk_len:]]
+    else:
+        chunks = [text]
+
+    extracted_results = []
+    warnings = []
+    
+    for i, chunk in enumerate(chunks):
+        try:
+            res = await asyncio.wait_for(
+                chain.ainvoke({"text": chunk, "format_instructions": parser.get_format_instructions()}),
+                timeout=settings.llm_timeout
+            )
+            extracted_results.append(res)
+        except asyncio.TimeoutError:
+            warnings.append(f"Timeout processing chunk {i+1}")
+        except Exception as e:
+            warnings.append(f"LLM Parsing failed for chunk {i+1}: {e}")
+            
+    if not extracted_results:
         # Fallback to basic extraction
         import re
         lower = text.lower()
         skills = [s for s in ["python", "sql", "javascript", "react", "machine learning"] if s in lower]
         email = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text)
-        return {"skills": skills, "email": email.group(0) if email else None, "parser": "fallback-regex"}
+        return {
+            "extraction_status": "partial",
+            "extraction_method": "fallback-regex",
+            "extraction_warnings": warnings + ["Fell back to regex extraction due to complete LLM failure."],
+            "parsed_profile": {
+                "skills": skills,
+                "email": email.group(0) if email else None,
+                "education": [],
+                "projects": [],
+                "experience": [],
+                "certifications": []
+            }
+        }
+        
+    # Merge results
+    merged_skills = set()
+    merged_education = set()
+    merged_experience = set()
+    merged_certifications = set()
+    merged_projects = []
+    merged_email = None
+    
+    for r in extracted_results:
+        merged_skills.update(r.skills)
+        merged_education.update(r.education)
+        merged_experience.update(r.experience)
+        merged_certifications.update(r.certifications)
+        merged_projects.extend(r.projects)
+        if not merged_email and r.email:
+            merged_email = r.email
+            
+    return {
+        "extraction_status": "completed" if not warnings else "partial",
+        "extraction_method": "langchain-llm",
+        "extraction_warnings": warnings,
+        "parsed_profile": {
+            "skills": list(merged_skills),
+            "email": merged_email,
+            "education": list(merged_education),
+            "projects": [p.model_dump() for p in merged_projects],
+            "experience": list(merged_experience),
+            "certifications": list(merged_certifications)
+        }
+    }
 
 
 def store_original(file_name: str, content: bytes) -> Path:
@@ -108,5 +168,19 @@ async def resume_payload(student_id: str, file_name: str, content: bytes, conten
         raise ValueError("Resume must be between 1 byte and 10 MB")
     extracted = extract_text(content, content_type)
     path = store_original(file_name, content)
-    parsed = await parse_profile(extracted)
-    return {"resume_id": str(uuid.uuid4()), "student_id": student_id, "file_name": sanitize_filename(file_name), "file_path": str(path), "version": 1, "extracted_text": extracted, "parsed_profile": parsed, "created_at": datetime.now(UTC).isoformat()}
+    parsed_result = await parse_profile(extracted)
+    return {
+        "resume_id": str(uuid.uuid4()), 
+        "student_id": student_id, 
+        "file_name": sanitize_filename(file_name), 
+        "file_path": str(path), 
+        "version": 1, 
+        "extracted_text": extracted, 
+        "parsed_profile": parsed_result["parsed_profile"], 
+        "extraction_metadata": {
+            "status": parsed_result["extraction_status"],
+            "method": parsed_result["extraction_method"],
+            "warnings": parsed_result["extraction_warnings"]
+        },
+        "created_at": datetime.now(UTC).isoformat()
+    }

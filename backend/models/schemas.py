@@ -67,6 +67,19 @@ class ProgressStatus(str, Enum):
     COMPLETED = "completed"
 
 
+class WorkflowStatus(str, Enum):
+    QUEUED = "queued"
+    EXTRACTING_PROFILE = "extracting_profile"
+    PROFILE_READY = "profile_ready"
+    DISCOVERING = "discovering"
+    MATCHING = "matching"
+    COMPLETED = "completed"
+    PARTIAL_SUCCESS = "partial_success"
+    NO_RESULTS = "no_results"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class ActorType(str, Enum):
     """Who performed an audited action."""
     AGENT = "agent"
@@ -345,3 +358,34 @@ class AuditEvent(BaseModel):
     metadata: Optional[dict] = None
 
     model_config = {"from_attributes": True}
+
+
+# =============================================
+# Agent Workflow
+# =============================================
+
+class AgentWorkflow(BaseModel):
+    workflow_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    student_id: str
+    resume_id: Optional[str] = None
+    status: WorkflowStatus = WorkflowStatus.QUEUED
+    current_stage: str = "queued"
+    progress_info: Optional[str] = None
+    errors: list[str] = Field(default_factory=list)
+    opportunities_discovered: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = {"from_attributes": True}
+
+
+# =============================================
+# Provider Outcome
+# =============================================
+
+class ProviderOutcome(BaseModel):
+    provider_name: str
+    attempted: bool
+    result_count: int
+    status: str = Field(..., description="success / failed / no_results")
+    error: Optional[str] = None

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     llm_base_url: str = Field(
         default="http://localhost:11434", description="LLM API base URL"
     )
+    llm_timeout: float = Field(default=30.0, description="Global LLM timeout in seconds")
 
     # ---- Database ----
     database_url: str = Field(

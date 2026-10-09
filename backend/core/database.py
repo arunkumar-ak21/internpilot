@@ -26,6 +26,18 @@ CREATE TABLE IF NOT EXISTS audit_events (
     details_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agent_workflows (
+    workflow_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    resume_id TEXT,
+    status TEXT NOT NULL,
+    current_stage TEXT NOT NULL,
+    progress_info TEXT,
+    errors_json TEXT,
+    opportunities_discovered INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS students (
     student_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

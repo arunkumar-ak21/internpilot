@@ -1,18 +1,22 @@
 """The Dynamic LangGraph Supervisor (Advanced Multi-Agent Orchestration)."""
 
 from __future__ import annotations
-
 import uuid
 import operator
 import asyncio
+import json
 from dataclasses import asdict, dataclass, field
-from typing import Literal, TypedDict, Annotated, Sequence
+from typing import Literal, TypedDict, Annotated, Sequence, Any, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
 
 from backend.services.resume_ingestion import get_llm
+from backend.repositories.resume_repository import ResumeRepository
+from backend.repositories.opportunity_repository import OpportunityRepository
+from backend.models.schemas import Opportunity, OpportunityMatch, EligibilityStatus, DeadlineRisk
+from backend.core.config import get_settings
 
 
 # ==========================================
@@ -31,35 +35,54 @@ class ConversationState:
     messages: list[str] = field(default_factory=list)
     opportunities: list[dict] = field(default_factory=list)
 
+
 class GraphState(TypedDict):
     """The internal LangGraph state passed between nodes."""
+    workflow_id: str | None
+    session_id: str
+    student_id: str | None
     messages: Annotated[Sequence[BaseMessage], operator.add]
-    next: str
-    skills: list[str]
-    target_role: str | None
-    location: str | None
+    candidate_profile: dict | None
+    search_preferences: dict | None
+    plan: str | None
+    current_task: str | None
     opportunities: list[dict]
+    match_results: list[dict]
+    workflow_status: str | None
+    errors: list[str]
+    next: str
 
 # ==========================================
-# 2. Worker Agents (Deterministic Nodes)
+# 2. Worker Agents
 # ==========================================
 
-async def discovery_node(state: GraphState):
-    """Executes the Discovery Agent in a fixed, deterministic pipeline."""
+async def profile_agent_node(state: GraphState):
+    """Profile Agent: Reads the profile from DB."""
+    student_id = state.get("student_id")
+    if not student_id:
+        return {"next": "DiscoveryAgent", "messages": [AIMessage(content="Profile Agent: No student ID provided, skipping profile load.")]}
+
+    repo = ResumeRepository(get_settings().database_url)
+    profile = await repo.get_latest_by_student(student_id)
+    
+    if profile:
+        return {"candidate_profile": profile, "next": "DiscoveryAgent", "messages": [AIMessage(content="Profile Agent: Candidate profile loaded.")]}
+    else:
+        return {"candidate_profile": {}, "next": "DiscoveryAgent", "messages": [AIMessage(content="Profile Agent: No profile found for student.")]}
+
+
+async def discovery_agent_node(state: GraphState):
+    """Executes the Discovery Agent to invoke configured search tools."""
     from backend.providers.factory import get_provider
     from backend.providers.base import SearchCriteria
-    from langchain_core.messages import AIMessage
     
     llm = get_llm()
-    skills = state.get("skills", [])
-    target_role = state.get("target_role")
-    location = state.get("location")
+    profile = state.get("candidate_profile", {})
+    skills = profile.get("skills", [])
     
     # 1. Deterministic Search Execution
     query_parts = []
-    if target_role:
-        query_parts.append(target_role)
-    elif skills:
+    if skills:
         query_parts.append(" ".join(skills[:3]))
     else:
         query_parts.append("software engineering")
@@ -68,129 +91,153 @@ async def discovery_node(state: GraphState):
     query = " ".join(query_parts)
     
     provider = get_provider()
-    criteria = SearchCriteria(query=query, location=location, max_results=5)
+    criteria = SearchCriteria(query=query, location=None, max_results=5)
     
+    opportunities = []
     try:
-        raw_results = await provider.search(criteria)
-        opportunities = []
-        for r in raw_results:
+        search_result = await asyncio.wait_for(provider.search(criteria), timeout=25.0)
+        
+        opp_repo = OpportunityRepository(get_settings().database_url)
+        
+        for r in search_result.results:
             opp_dict = {
-                "company": r.company,
-                "role": r.role,
-                "location": r.location,
-                "description": r.description[:500] + "..." if len(r.description) > 500 else r.description,
-                "source": r.source,
-                "source_id": r.source_id,
-                "application_url": r.application_url
+                "opportunity_id": str(uuid.uuid4()),
+                "company": getattr(r, 'company', 'Unknown'),
+                "role": getattr(r, 'role', 'Unknown'),
+                "location": getattr(r, 'location', None),
+                "description": getattr(r, 'description', '')[:500] + "...",
+                "source": getattr(r, 'source', 'Discovery'),
+                "source_id": getattr(r, 'source_id', None),
+                "application_url": getattr(r, 'application_url', None)
             }
+            
+            # Construct standard Opportunity
+            opp = Opportunity(
+                opportunity_id=opp_dict["opportunity_id"],
+                company=opp_dict["company"],
+                role=opp_dict["role"],
+                location=opp_dict["location"],
+                description=getattr(r, 'description', ''),
+                source=opp_dict["source"],
+                source_id=opp_dict["source_id"],
+                application_url=opp_dict["application_url"]
+            )
+            # Save opportunity to DB
+            await opp_repo.save_opportunity(opp)
             opportunities.append(opp_dict)
+            
     except Exception as e:
-        opportunities = []
-        error_msg = f"Search failed: {e}"
-        print(error_msg)
-        return {"messages": [AIMessage(content=f"I tried searching for {query}, but the search provider failed or is unavailable.")], "opportunities": []}
+        print(f"Discovery Agent failed: {e}")
+        state.get("errors", []).append(f"Discovery search failed: {e}")
+        return {"opportunities": state.get("opportunities", []), "messages": [AIMessage(content=f"Discovery Agent: Search failed: {e}")], "next": "MatchingAgent"}
 
-    if not opportunities:
-        return {"messages": [AIMessage(content=f"I searched for '{query}' but couldn't find any matching opportunities right now.")], "opportunities": []}
-
-    # 2. Synthesis (LLM Call)
-    skills_context = f"The user has the following skills: {', '.join(skills)}." if skills else ""
-    opps_text = "\n".join([f"- {o['role']} at {o['company']} ({o['location']})" for o in opportunities])
-    prompt = (
-        f"You are the Discovery Agent. {skills_context}\n"
-        f"I searched the web for '{query}' and found these {len(opportunities)} opportunities:\n\n{opps_text}\n\n"
-        "Synthesize these findings into a short conversational summary, highlighting why they match."
-    )
-    
-    from langchain_core.messages import SystemMessage
-    response = await asyncio.wait_for(
-        llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"])),
-        timeout=15.0
-    )
-    
-    return {"messages": [response], "opportunities": opportunities}
+    if search_result.status == "search_failed":
+        state.get("errors", []).append("All configured search providers failed.")
+        
+    return {"opportunities": opportunities, "messages": [AIMessage(content=f"Discovery Agent: Found {len(opportunities)} opportunities. Status: {search_result.status}")], "next": "MatchingAgent"}
 
 
-
-async def eligibility_node(state: GraphState):
-    """Executes the Eligibility Agent in a fixed, deterministic pipeline."""
-    llm = get_llm()
-    skills = state.get("skills", [])
+async def matching_agent_node(state: GraphState):
+    """Executes the Matching Agent to evaluate discovered opportunities against profile."""
     opportunities = state.get("opportunities", [])
+    profile = state.get("candidate_profile", {})
+    student_id = state.get("student_id")
     
-    skills_context = f"The user has the following skills: {', '.join(skills)}." if skills else ""
-    opps_context = ""
+    if not opportunities or not student_id:
+        return {"next": "ResponseAgent", "messages": [AIMessage(content="Matching Agent: No opportunities or student_id to match.")]}
+
+    opp_repo = OpportunityRepository(get_settings().database_url)
+    match_results = []
+    
+    llm = get_llm()
+    skills_context = ", ".join(profile.get("skills", []))
+    
+    for opp in opportunities:
+        # Evaluate Match
+        prompt = (
+            f"You are the Eligibility Agent.\n"
+            f"Candidate Skills: {skills_context}\n"
+            f"Opportunity: {opp['role']} at {opp['company']}\n"
+            f"Description: {opp.get('description', '')}\n\n"
+            f"Determine if the candidate is a fit. Provide a brief explanation. Does it match? (YES/NO/MAYBE)"
+        )
+        
+        try:
+            response = await asyncio.wait_for(llm.ainvoke([SystemMessage(content=prompt)]), timeout=10.0)
+            explanation = response.content
+            
+            # Simple heuristic since structured output can fail
+            eligibility = EligibilityStatus.UNKNOWN
+            if "YES" in explanation.upper(): eligibility = EligibilityStatus.PASS_
+            elif "NO" in explanation.upper(): eligibility = EligibilityStatus.FAIL
+            
+            match = OpportunityMatch(
+                student_id=student_id,
+                opportunity_id=opp["opportunity_id"],
+                eligibility=eligibility,
+                explanation=explanation,
+                skill_match=0.8 if eligibility == EligibilityStatus.PASS_ else 0.4
+            )
+            await opp_repo.save_match(match)
+            match_results.append(match.model_dump())
+            
+        except Exception as e:
+            print(f"Matching Agent LLM failed: {e}")
+            # Persist an UNKNOWN match
+            match = OpportunityMatch(
+                student_id=student_id,
+                opportunity_id=opp["opportunity_id"],
+                eligibility=EligibilityStatus.UNKNOWN,
+                explanation=f"Matching failed due to LLM timeout/error: {e}"
+            )
+            await opp_repo.save_match(match)
+            match_results.append(match.model_dump())
+
+    return {"match_results": match_results, "messages": [AIMessage(content=f"Matching Agent: Processed {len(opportunities)} matches.")], "next": "ResponseAgent"}
+
+
+async def response_agent_node(state: GraphState):
+    """Constructs the final response."""
+    opportunities = state.get("opportunities", [])
     if opportunities:
-        opps_text = "\n".join([f"- {o['role']} at {o['company']}" for o in opportunities])
-        opps_context = f"Here are the currently discovered opportunities:\n{opps_text}\n"
-    
-    prompt = (
-        f"You are the Eligibility Agent. {skills_context}\n{opps_context}\n"
-        "Your responsibility is to evaluate if the candidate is a good fit "
-        "for the jobs currently discussed. Be highly analytical. Highlight missing skills. "
-        "Return your evaluation as a conversational response."
-    )
-    
-    from langchain_core.messages import SystemMessage
-    response = await asyncio.wait_for(
-        llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"])),
-        timeout=15.0
-    )
-    return {"messages": [response]}
+        msg = f"I have discovered {len(opportunities)} internship opportunities and analyzed your eligibility."
+    else:
+        msg = "I attempted to find opportunities but none were found or an error occurred."
+        
+    return {"messages": [AIMessage(content=msg)], "next": "FINISH"}
 
 
 class RouteSchema(BaseModel):
     """Schema forcing the LLM to output a strict routing decision."""
-    next: Literal["Discovery", "Eligibility", "FINISH"] = Field(
-        description="The next worker to route to. Use FINISH if the user's request has been fully addressed."
+    next: Literal["ProfileAgent", "DiscoveryAgent", "MatchingAgent", "ResponseAgent", "FINISH"] = Field(
+        description="The next worker to route to."
     )
 
-
-async def supervisor_node(state: GraphState):
+async def coordinator_node(state: GraphState):
     """The master orchestrator that decides which agent works next."""
+    # For automatic workflow: 
+    if state.get("workflow_id"):
+        # We just follow a strict sequence if next is not set
+        if not state.get("next"):
+            return {"next": "ProfileAgent"}
+        return {"next": state["next"]}
+        
     llm = get_llm()
-    
-    skills = state.get("skills", [])
-    skills_context = f"The user's skills are: {', '.join(skills)}." if skills else "No skills provided yet."
-    
     system_prompt = (
         "You are the Supervisor of an AI Internship Platform. "
-        "You orchestrate a team of workers: 'Discovery' (finds jobs) and 'Eligibility' (evaluates fit). "
-        f"{skills_context}\n"
         "Read the conversation history. Decide who should act next. "
-        "If the user is asking to find jobs, route to Discovery. "
-        "If the user is asking if they are qualified or asking about their skills, route to Eligibility (or handle it yourself). "
-        "If the request is fully answered, route to FINISH."
+        "Route to ProfileAgent to load profiles, DiscoveryAgent to find jobs, MatchingAgent to evaluate, or ResponseAgent to reply."
     )
     
     messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
-    
-    # Force the LLM to output structured JSON matching RouteSchema
     router_llm = llm.with_structured_output(RouteSchema)
     
     try:
-        decision = await asyncio.wait_for(
-            router_llm.ainvoke(messages),
-            timeout=10.0
-        )
-        next_step = decision.next
-        
-        # If the Supervisor decides to FINISH immediately but there is no AI response in the state,
-        # we ask the LLM to generate a direct conversational answer.
-        from langchain_core.messages import HumanMessage
-        if next_step == "FINISH" and isinstance(state["messages"][-1], HumanMessage):
-            conversational_response = await asyncio.wait_for(
-                llm.ainvoke(messages),
-                timeout=15.0
-            )
-            return {"next": "FINISH", "messages": [conversational_response]}
-            
-        return {"next": next_step}
+        decision = await asyncio.wait_for(router_llm.ainvoke(messages), timeout=10.0)
+        return {"next": decision.next}
     except Exception as e:
-        from langchain_core.messages import AIMessage
         print(f"LLM Parsing failed: {e}")
-        error_msg = AIMessage(content="My AI brain is currently offline (API Error). Please check my API Key.")
-        return {"next": "FINISH", "messages": [error_msg]}
+        return {"next": "FINISH", "messages": [AIMessage(content="My AI brain is currently offline (API Error).")]}
 
 
 # ==========================================
@@ -199,26 +246,31 @@ async def supervisor_node(state: GraphState):
 
 workflow = StateGraph(GraphState)
 
-workflow.add_node("Supervisor", supervisor_node)
-workflow.add_node("Discovery", discovery_node)
-workflow.add_node("Eligibility", eligibility_node)
+workflow.add_node("Coordinator", coordinator_node)
+workflow.add_node("ProfileAgent", profile_agent_node)
+workflow.add_node("DiscoveryAgent", discovery_agent_node)
+workflow.add_node("MatchingAgent", matching_agent_node)
+workflow.add_node("ResponseAgent", response_agent_node)
 
-workflow.add_edge(START, "Supervisor")
+workflow.add_edge(START, "Coordinator")
 
-# The Supervisor routes dynamically based on the 'next' key in state
 workflow.add_conditional_edges(
-    "Supervisor",
-    lambda state: state["next"],
+    "Coordinator",
+    lambda state: state.get("next", "FINISH"),
     {
-        "Discovery": "Discovery",
-        "Eligibility": "Eligibility",
+        "ProfileAgent": "ProfileAgent",
+        "DiscoveryAgent": "DiscoveryAgent",
+        "MatchingAgent": "MatchingAgent",
+        "ResponseAgent": "ResponseAgent",
         "FINISH": END
     }
 )
 
-# Workers always report back to the Supervisor
-workflow.add_edge("Discovery", "Supervisor")
-workflow.add_edge("Eligibility", "Supervisor")
+# Enforce Automatic Pipeline
+workflow.add_edge("ProfileAgent", "Coordinator")
+workflow.add_edge("DiscoveryAgent", "Coordinator")
+workflow.add_edge("MatchingAgent", "Coordinator")
+workflow.add_edge("ResponseAgent", "Coordinator")
 
 app = workflow.compile()
 
@@ -241,27 +293,31 @@ def new_state(session_id: str | None = None) -> ConversationState:
 
 
 async def coordinate(message: str, state: ConversationState) -> CoordinatorResult:
-    """Entry point for the FastAPI route. Wraps the LangGraph execution."""
+    """Entry point for ordinary conversational requests."""
     state.messages.append(message)
+    graph_messages = [HumanMessage(content=msg) for msg in state.messages[-5:]]
     
-    # Reconstruct message history for LangGraph (mocking previous turns for simplicity)
-    graph_messages = [HumanMessage(content=msg) for msg in state.messages[-5:]] # Keep some history
+    # We must ensure we have a student_id for the ProfileAgent, but currently state doesn't have it.
+    # The frontend uses session_id for anonymous chat.
+    
     initial_graph_state = {
+        "workflow_id": None,
+        "session_id": state.session_id,
+        "student_id": state.session_id, # Fallback to session_id for now
         "messages": graph_messages, 
-        "next": "", 
-        "skills": state.skills,
-        "target_role": state.target_role,
-        "location": state.location,
-        "opportunities": state.opportunities
+        "next": "",
+        "candidate_profile": {"skills": state.skills},
+        "search_preferences": {},
+        "plan": None,
+        "current_task": None,
+        "opportunities": state.opportunities,
+        "match_results": [],
+        "workflow_status": None,
+        "errors": []
     }
     
     try:
-        # Execute the graph with an outer timeout
-        result = await asyncio.wait_for(
-            app.ainvoke(initial_graph_state),
-            timeout=40.0
-        )
-        # The final response is the last message in the state
+        result = await asyncio.wait_for(app.ainvoke(initial_graph_state), timeout=60.0)
         final_message = result["messages"][-1].content
         action = result.get("next", "FINISH")
         opps = result.get("opportunities", [])
