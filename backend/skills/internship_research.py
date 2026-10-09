@@ -7,6 +7,7 @@ and application processes.
 """
 
 from typing import Optional, List
+import asyncio
 from pydantic import BaseModel, Field
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -61,14 +62,17 @@ class InternshipResearchSkill:
         """
         # Execute the chain asynchronously
         try:
-            result = await self.chain.ainvoke({
-                "company": opportunity.company,
-                "role": opportunity.role,
-                "location": opportunity.location or "Unknown",
-                "description": opportunity.description or "No description provided.",
-                "objective": objective,
-                "format_instructions": self.parser.get_format_instructions()
-            })
+            result = await asyncio.wait_for(
+                self.chain.ainvoke({
+                    "company": opportunity.company,
+                    "role": opportunity.role,
+                    "location": opportunity.location or "Unknown",
+                    "description": opportunity.description or "No description provided.",
+                    "objective": objective,
+                    "format_instructions": self.parser.get_format_instructions()
+                }),
+                timeout=15.0
+            )
             return result
         except Exception as e:
             # Fallback for failing LLMs or missing models (e.g. during testing without local ollama)

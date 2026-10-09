@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+import asyncio
 
 from docx import Document
 from PyPDF2 import PdfReader
@@ -70,7 +71,11 @@ async def parse_profile(text: str) -> dict:
     
     try:
         # We run it asynchronously to avoid blocking the event loop
-        extracted = await chain.ainvoke({"text": truncated_text, "format_instructions": parser.get_format_instructions()})
+        # Wrap in wait_for to enforce a strict timeout in case the LLM is offline or hanging
+        extracted = await asyncio.wait_for(
+            chain.ainvoke({"text": truncated_text, "format_instructions": parser.get_format_instructions()}),
+            timeout=3.0
+        )
         return {
             "skills": extracted.skills,
             "email": extracted.email,

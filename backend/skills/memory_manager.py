@@ -9,6 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
+import asyncio
 
 from backend.models.schemas import CandidatePreference, WorkMode
 from backend.core.config import get_settings
@@ -51,10 +52,13 @@ class MemoryManager:
     async def extract_preferences(self, message: str) -> PreferenceExtraction:
         """Analyze a single message for new preferences."""
         try:
-            return await self.chain.ainvoke({
-                "message": message,
-                "format_instructions": self.parser.get_format_instructions()
-            })
+            return await asyncio.wait_for(
+                self.chain.ainvoke({
+                    "message": message,
+                    "format_instructions": self.parser.get_format_instructions()
+                }),
+                timeout=10.0
+            )
         except Exception:
             # Fallback to empty extraction if LLM fails
             return PreferenceExtraction()

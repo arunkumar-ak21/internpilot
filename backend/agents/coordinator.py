@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 import operator
+import asyncio
 from dataclasses import asdict, dataclass, field
 from typing import Literal, TypedDict, Annotated, Sequence
 
@@ -102,7 +103,10 @@ async def discovery_node(state: GraphState):
     )
     
     from langchain_core.messages import SystemMessage
-    response = await llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"]))
+    response = await asyncio.wait_for(
+        llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"])),
+        timeout=15.0
+    )
     
     return {"messages": [response], "opportunities": opportunities}
 
@@ -128,7 +132,10 @@ async def eligibility_node(state: GraphState):
     )
     
     from langchain_core.messages import SystemMessage
-    response = await llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"]))
+    response = await asyncio.wait_for(
+        llm.ainvoke([SystemMessage(content=prompt)] + list(state["messages"])),
+        timeout=15.0
+    )
     return {"messages": [response]}
 
 
@@ -162,14 +169,20 @@ async def supervisor_node(state: GraphState):
     router_llm = llm.with_structured_output(RouteSchema)
     
     try:
-        decision = await router_llm.ainvoke(messages)
+        decision = await asyncio.wait_for(
+            router_llm.ainvoke(messages),
+            timeout=10.0
+        )
         next_step = decision.next
         
         # If the Supervisor decides to FINISH immediately but there is no AI response in the state,
         # we ask the LLM to generate a direct conversational answer.
         from langchain_core.messages import HumanMessage
         if next_step == "FINISH" and isinstance(state["messages"][-1], HumanMessage):
-            conversational_response = await llm.ainvoke(messages)
+            conversational_response = await asyncio.wait_for(
+                llm.ainvoke(messages),
+                timeout=15.0
+            )
             return {"next": "FINISH", "messages": [conversational_response]}
             
         return {"next": next_step}
@@ -243,8 +256,11 @@ async def coordinate(message: str, state: ConversationState) -> CoordinatorResul
     }
     
     try:
-        # Execute the graph
-        result = await app.ainvoke(initial_graph_state)
+        # Execute the graph with an outer timeout
+        result = await asyncio.wait_for(
+            app.ainvoke(initial_graph_state),
+            timeout=40.0
+        )
         # The final response is the last message in the state
         final_message = result["messages"][-1].content
         action = result.get("next", "FINISH")
