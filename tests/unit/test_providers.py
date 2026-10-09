@@ -1,14 +1,12 @@
 """Unit tests for the Opportunity Provider Abstraction (Phase 5)."""
 
 import pytest
-import httpx
 from unittest.mock import patch, MagicMock
 
 from backend.providers.base import SearchCriteria, RawOpportunity
 from backend.providers.mock import MockOpportunityProvider
 from backend.providers.adzuna import AdzunaProvider
 from backend.providers.factory import get_provider
-from backend.core.config import Settings
 
 
 @pytest.mark.asyncio

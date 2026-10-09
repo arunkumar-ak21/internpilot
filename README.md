@@ -15,14 +15,14 @@ internship through final evaluation — all in one auditable record.
 |-------|-----------|--------|
 | 0 | Repository + Architecture + Contracts | ✅ Complete |
 | 1 | Backend / Frontend skeleton | ✅ Complete |
-| 2 | Lab 1 — Agent vs Chatbot | ⬜ Not Started |
-| 3 | Lab 2 — Tool-Using Agent | ⬜ Not Started |
-| 4 | Resume Ingestion | ⬜ Not Started |
-| 5 | Opportunity Provider Abstraction | ⬜ Not Started |
-| 6 | Lab 3 — Internship Research Skill | ⬜ Not Started |
-| 7 | Lab 4 — Memory & Retrieval | ⬜ Not Started |
-| 8 | Lab 5 — MCP-Style Connector | ⬜ Not Started |
-| 9 | End-to-End Lab 1–5 Demo | ⬜ Not Started |
+| 2 | Lab 1 — Agent vs Chatbot | ✅ Complete |
+| 3 | Lab 2 — Tool-Using Agent | ✅ Complete |
+| 4 | Resume Ingestion | ✅ Complete |
+| 5 | Opportunity Provider Abstraction | ✅ Complete |
+| 6 | Lab 3 — Internship Research Skill | ✅ Complete |
+| 7 | Lab 4 — Memory & Retrieval | ✅ Complete |
+| 8 | Lab 5 — MCP-Style Connector | ✅ Complete |
+| 9 | End-to-End Lab 1–5 Demo | ✅ Complete |
 
 ## Run the foundation
 

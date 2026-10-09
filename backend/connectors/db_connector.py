@@ -1,7 +1,6 @@
 """Database Connector for controlled SQLite access."""
 
 import aiosqlite
-import json
 from typing import Any, Dict, List, Optional
 
 from backend.connectors.base import Connector, Resource

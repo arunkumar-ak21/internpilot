@@ -18,15 +18,34 @@ SUPPORTED_TYPES = {
     "application/pdf": ".pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
 }
-KNOWN_SKILLS = {"python", "sql", "pytorch", "tensorflow", "fastapi", "react", "javascript", "machine learning"}
+import json
+from pathlib import Path
+from io import BytesIO
+from docx import Document
+from PyPDF2 import PdfReader
+from pydantic import BaseModel, Field
+from langchain_ollama import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from backend.core.config import get_settings
 
+def get_llm():
+    settings = get_settings()
+    if settings.llm_provider == "groq":
+        from langchain_groq import ChatGroq
+        return ChatGroq(model_name=settings.llm_model, temperature=0.0, groq_api_key=settings.groq_api_key, max_retries=1, timeout=10.0)
+    elif settings.llm_provider == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(model=settings.llm_model, temperature=0.0, google_api_key=settings.gemini_api_key)
+    else:
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=settings.llm_model, base_url=settings.llm_base_url, temperature=0.0)
 
 def sanitize_filename(name: str) -> str:
     clean = Path(name).name
     if not clean or clean in {".", ".."}:
         raise ValueError("A valid file name is required")
     return clean
-
 
 def extract_text(content: bytes, content_type: str) -> str:
     if content_type == "text/plain":
@@ -37,13 +56,42 @@ def extract_text(content: bytes, content_type: str) -> str:
         return "\n".join(paragraph.text for paragraph in Document(BytesIO(content)).paragraphs)
     raise ValueError("Unsupported resume format")
 
+class ResumeExtraction(BaseModel):
+    skills: list[str] = Field(description="A list of technical and soft skills extracted from the resume.")
+    email: str | None = Field(description="The email address of the candidate, if found.")
+    education: list[str] = Field(description="List of degrees or educational institutions found.")
 
 def parse_profile(text: str) -> dict:
-    """Extract only explicit facts; unknown facts remain absent rather than inferred."""
-    lower = text.lower()
-    skills = sorted(skill for skill in KNOWN_SKILLS if skill in lower)
-    email = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text)
-    return {"skills": skills, "email": email.group(0) if email else None, "parser": "deterministic-keyword-v1"}
+    """Extract explicit facts from the resume using LangChain."""
+    parser = PydanticOutputParser(pydantic_object=ResumeExtraction)
+    llm = get_llm()
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an expert HR recruiter AI. Extract the exact skills, email, and education from the resume text provided. Do not invent any information. If something is missing, leave it empty or null.\n\n{format_instructions}"),
+        ("user", "Resume Text:\n{text}")
+    ])
+    
+    chain = prompt | llm | parser
+    
+    try:
+        # We run it synchronously since this is called in a standard function for now, 
+        # or we could make parse_profile async. Assuming standard function for this flow.
+        # However, to avoid blocking, normally this would be async.
+        extracted = chain.invoke({"text": text, "format_instructions": parser.get_format_instructions()})
+        return {
+            "skills": extracted.skills,
+            "email": extracted.email,
+            "education": extracted.education,
+            "parser": "langchain-ollama"
+        }
+    except Exception as e:
+        print(f"LLM Parsing failed: {e}")
+        # Fallback to basic extraction
+        import re
+        lower = text.lower()
+        skills = [s for s in ["python", "sql", "javascript", "react", "machine learning"] if s in lower]
+        email = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text)
+        return {"skills": skills, "email": email.group(0) if email else None, "parser": "fallback-regex"}
 
 
 def store_original(file_name: str, content: bytes) -> Path:

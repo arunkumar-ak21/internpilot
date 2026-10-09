@@ -138,9 +138,9 @@ schema, validation rules, and error behavior.
 |------|-------|--------|
 | read_resume | 2 | ✅ TXT reader implemented; upload ingestion supports TXT/PDF/DOCX |
 | get_candidate_profile | 2 | ⬜ Not Started |
-| update_candidate_profile | 2 | ⬜ Not Started |
-| get_preferences | 2 | ⬜ Not Started |
-| search_opportunities | 3 | ✅ Mock provider implemented |
+| update_candidate_profile | 2 | ✅ Implemented via MemoryManager/CandidatePreference |
+| get_preferences | 2 | ✅ Implemented via PreferenceRepository |
+| search_opportunities | 3 | ✅ Adzuna & Mock providers implemented |
 | normalize_opportunity | 3 | ⬜ Not Started |
 | check_eligibility | 3 | ⬜ Not Started |
 | calculate_match_score | 3 | ⬜ Not Started |

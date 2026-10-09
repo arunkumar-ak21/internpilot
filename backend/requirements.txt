@@ -15,10 +15,10 @@ pydantic-settings==2.9.1
 aiosqlite==0.21.0
 
 # ---- Agent Framework ----
-langchain==0.3.25
-langchain-community==0.3.24
-langgraph==0.4.8
-langchain-ollama==0.3.3
+langgraph
+langchain-ollama
+langchain-groq
+duckduckgo-search
 
 # ---- File Processing ----
 python-docx==1.1.2

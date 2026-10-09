@@ -135,8 +135,8 @@ Each agent contract specifies:
 
 | Agent | Lab | Status |
 |-------|-----|--------|
-| Coordinator | Lab 1 | ⬜ Not Started |
-| Opportunity Discovery | Lab 2 | ⬜ Not Started |
+| Coordinator | Lab 1 | ✅ Complete |
+| Opportunity Discovery | Lab 2 | ✅ Complete |
 | Eligibility Verification | Lab 2 | ⬜ Not Started |
 | Application Processing | Lab 2+ | ⬜ Not Started |
 | Approval | Lab 2+ | ⬜ Not Started |

@@ -26,15 +26,24 @@ CREATE TABLE IF NOT EXISTS audit_events (
     details_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS resumes (
-    resume_id TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS students (
+    student_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    branch TEXT,
+    degree TEXT,
+    graduation_year INTEGER,
+    cgpa REAL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS candidate_skills (
+    id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL,
-    file_name TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    extracted_text TEXT,
-    parsed_profile_json TEXT,
-    created_at TEXT NOT NULL
+    skill TEXT NOT NULL,
+    proficiency TEXT,
+    source TEXT NOT NULL,
+    confidence REAL
 );
 CREATE TABLE IF NOT EXISTS candidate_preferences (
     id TEXT PRIMARY KEY,
@@ -47,6 +56,86 @@ CREATE TABLE IF NOT EXISTS candidate_preferences (
     availability TEXT,
     additional_constraints TEXT,
     updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS resumes (
+    resume_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    extracted_text TEXT,
+    parsed_profile_json TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS opportunities (
+    opportunity_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    source_id TEXT,
+    company TEXT NOT NULL,
+    role TEXT NOT NULL,
+    description TEXT,
+    location TEXT,
+    work_mode TEXT,
+    stipend TEXT,
+    duration TEXT,
+    deadline TEXT,
+    eligibility_requirements_json TEXT,
+    required_skills_json TEXT,
+    application_url TEXT,
+    fetched_at TEXT NOT NULL,
+    normalized_data_json TEXT
+);
+CREATE TABLE IF NOT EXISTS opportunity_matches (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    opportunity_id TEXT NOT NULL,
+    eligibility TEXT NOT NULL,
+    eligibility_reason TEXT,
+    skill_match REAL,
+    role_match REAL,
+    location_match REAL,
+    preference_match REAL,
+    deadline_risk TEXT,
+    overall_score REAL,
+    missing_skills_json TEXT,
+    explanation TEXT,
+    calculated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS applications (
+    application_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    opportunity_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    resume_version INTEGER,
+    draft_application_json TEXT,
+    approval_state TEXT,
+    approved_by TEXT,
+    approved_at TEXT,
+    submission_reference TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS progress (
+    id TEXT PRIMARY KEY,
+    application_id TEXT NOT NULL,
+    milestone TEXT NOT NULL,
+    status TEXT NOT NULL,
+    start_date TEXT,
+    end_date TEXT,
+    notes TEXT,
+    evidence_json TEXT
+);
+CREATE TABLE IF NOT EXISTS evaluations (
+    id TEXT PRIMARY KEY,
+    application_id TEXT NOT NULL,
+    mentor_feedback TEXT,
+    company_feedback TEXT,
+    rubric_json TEXT,
+    draft_score REAL,
+    final_score REAL,
+    final_grade TEXT,
+    approved_by TEXT,
+    evaluated_at TEXT
 );
 """
 

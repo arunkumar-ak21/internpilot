@@ -1,6 +1,5 @@
 """File Connector for controlled local file system access."""
 
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

@@ -12,6 +12,10 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings
 from pydantic import Field
+from dotenv import load_dotenv
+
+# Force .env file to override OS environment variables
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=True)
 
 
 # ---- Paths ----
@@ -32,8 +36,9 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, description="Server bind port")
 
     # ---- LLM ----
-    llm_provider: str = Field(default="ollama", description="LLM provider name")
-    llm_model: str = Field(default="llama3.2", description="LLM model name")
+    llm_provider: str = Field(default="groq", description="LLM provider name")
+    llm_model: str = Field(default="llama3-70b-8192", description="LLM model name")
+    groq_api_key: str = Field(default="", description="Groq API Key")
     llm_base_url: str = Field(
         default="http://localhost:11434", description="LLM API base URL"
     )

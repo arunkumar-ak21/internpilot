@@ -1,8 +1,6 @@
 """Unit tests for the MCP-Style Connectors (Phase 8)."""
 
 import pytest
-import os
-from pathlib import Path
 
 from backend.connectors.file_connector import FileConnector
 from backend.connectors.db_connector import DatabaseConnector

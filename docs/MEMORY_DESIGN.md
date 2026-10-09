@@ -112,7 +112,7 @@ Agent checks: Do we have persistent preferences?
 
 | Component | Phase | Status |
 |-----------|-------|--------|
-| Session state via LangGraph | Lab 1 (Phase 2) | ⬜ Not Started |
-| Persistent preferences in SQLite | Lab 4 (Phase 7) | ⬜ Not Started |
-| Preference retrieval before search | Lab 4 (Phase 7) | ⬜ Not Started |
-| Cross-session continuity demo | Lab 4 (Phase 7) | ⬜ Not Started |
+| Session state via LangGraph | Lab 1 (Phase 2) | ✅ Complete |
+| Persistent preferences in SQLite | Lab 4 (Phase 7) | ✅ Complete |
+| Preference retrieval before search | Lab 4 (Phase 7) | ✅ Complete |
+| Cross-session continuity demo | Lab 4 (Phase 7) | ✅ Complete |

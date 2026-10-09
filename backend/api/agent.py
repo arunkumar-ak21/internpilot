@@ -7,6 +7,7 @@ from backend.agents.coordinator import coordinate, new_state
 from backend.core.config import get_settings
 from backend.repositories.session_repository import SessionRepository
 from backend.repositories.preference_repository import PreferenceRepository
+from backend.repositories.resume_repository import ResumeRepository
 from backend.skills.memory_manager import MemoryManager
 from backend.models.schemas import CandidatePreference
 
@@ -36,28 +37,43 @@ async def send_message(request: MessageRequest) -> MessageResponse:
     memory_manager = MemoryManager()
     
     # Load session state
+    print("[DEBUG] Loading session state")
     state = await session_repo.get(request.session_id) if request.session_id else None
     state = state or new_state(request.session_id)
     
     # Memory Phase (Lab 4): Load, Extract, Merge, Save Preferences
+    print("[DEBUG] Getting preferences from DB")
     existing_pref = await pref_repo.get_by_student_id(request.student_id)
     if not existing_pref:
         existing_pref = CandidatePreference(student_id=request.student_id)
         
+    print("[DEBUG] Extracting preferences via LLM")
     extraction = await memory_manager.extract_preferences(request.message)
+    print("[DEBUG] Merging preferences")
     updated_pref = memory_manager.merge_preferences(existing_pref, extraction)
+    print("[DEBUG] Saving preferences to DB")
     await pref_repo.save(updated_pref)
     
     # Sync preferences back to state so the coordinator doesn't ask for things we already know
+    print("[DEBUG] Syncing preferences")
     if updated_pref.target_roles:
         state.target_role = state.target_role or updated_pref.target_roles[0]
     if updated_pref.locations:
         state.location = state.location or updated_pref.locations[0]
     if updated_pref.minimum_stipend:
         state.minimum_stipend = state.minimum_stipend or updated_pref.minimum_stipend
-    
+        
+    # Fetch latest resume skills
+    print("[DEBUG] Fetching skills")
+    resume_repo = ResumeRepository(db_url)
+    latest_resume = await resume_repo.get_latest_by_student(request.student_id)
+    if latest_resume and "skills" in latest_resume:
+        state.skills = latest_resume["skills"]
+        
     # Coordinator Phase (Lab 1)
+    print("[DEBUG] Calling coordinate()")
     result = coordinate(request.message, state)
+    print("[DEBUG] coordinate() finished")
     await session_repo.save(result.state)
     await session_repo.audit(result.state.trace_id, "coordinator_decision", {"action": result.action, "missing_fields": result.missing_fields})
     

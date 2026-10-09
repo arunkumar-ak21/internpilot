@@ -10,10 +10,7 @@ This script simulates a complete user journey through the InternPilot backend:
 """
 
 import asyncio
-import json
 import logging
-from pathlib import Path
-from datetime import UTC, datetime
 
 from backend.core.config import get_settings
 from backend.core.database import initialize_database

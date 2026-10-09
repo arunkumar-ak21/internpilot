@@ -28,11 +28,18 @@ class MemoryManager:
 
     def __init__(self, llm=None):
         settings = get_settings()
-        self.llm = llm or ChatOllama(
-            model=settings.llm_model, 
-            base_url=settings.llm_base_url,
-            temperature=0.0
-        )
+        if llm:
+            self.llm = llm
+        elif settings.llm_provider == "groq":
+            from langchain_groq import ChatGroq
+            self.llm = ChatGroq(model_name=settings.llm_model, temperature=0.0, groq_api_key=settings.groq_api_key, max_retries=1, timeout=10.0)
+        elif settings.llm_provider == "gemini":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            self.llm = ChatGoogleGenerativeAI(model=settings.llm_model, temperature=0.0, google_api_key=settings.gemini_api_key)
+        else:
+            from langchain_ollama import ChatOllama
+            self.llm = ChatOllama(model=settings.llm_model, base_url=settings.llm_base_url, temperature=0.0)
+        
         self.parser = PydanticOutputParser(pydantic_object=PreferenceExtraction)
         
         self.prompt = ChatPromptTemplate.from_messages([
