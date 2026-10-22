@@ -43,10 +43,11 @@ build/
 Thumbs.db
 desktop.ini
 
-# ---- Database ----
+# ---- Database & Data ----
 *.db
 *.sqlite
 *.sqlite3
+data/uploads/
 
 # ---- Logs ----
 *.log

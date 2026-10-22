@@ -37,6 +37,15 @@ class SearchResult:
     provider_outcomes: list[ProviderOutcomeResult]
     errors: list[str]
 
+    def __len__(self) -> int:
+        return len(self.results)
+
+    def __iter__(self):
+        return iter(self.results)
+
+    def __getitem__(self, idx):
+        return self.results[idx]
+
 
 class OpportunityProvider(ABC):
     @abstractmethod

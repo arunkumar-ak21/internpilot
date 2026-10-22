@@ -13,31 +13,43 @@ router = APIRouter(prefix="/resumes", tags=["resumes"])
 
 @router.post("/upload")
 async def upload_resume(background_tasks: BackgroundTasks, student_id: str = Form(...), file: UploadFile = File(...)) -> dict:
+    """Upload resume, extract profile, and start background workflow."""
     try:
         payload = await resume_payload(student_id, file.filename or "", await file.read(), file.content_type or "")
         await ResumeRepository(get_settings().database_url).save(payload)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    await SessionRepository(get_settings().database_url).audit("resume-upload", "resume_ingested", {"resume_id": payload["resume_id"], "file_name": payload["file_name"]})
-    
+
+    await SessionRepository(get_settings().database_url).audit(
+        "resume-upload", "resume_ingested",
+        {"resume_id": payload["resume_id"], "file_name": payload["file_name"]}
+    )
+
+    # Create workflow and start background execution
     workflow_service = AgentWorkflowService()
     workflow = await workflow_service.create_workflow(student_id=student_id, resume_id=payload["resume_id"])
-    
-    if payload.get("extraction_metadata", {}).get("status") == "failed":
+
+    extraction_status = payload.get("extraction_metadata", {}).get("status", "completed")
+
+    if extraction_status == "failed":
         workflow.status = "failed"
         workflow.errors.append("Profile extraction failed.")
         await workflow_service.repo.save(workflow)
-        profile_status = "failed"
         workflow_status = "failed"
     else:
-        profile_status = payload.get("extraction_metadata", {}).get("status", "completed")
         workflow_status = workflow.status.value
         background_tasks.add_task(workflow_service.run_resume_to_opportunities, workflow.workflow_id)
 
-    response = {key: value for key, value in payload.items() if key not in {"file_path", "extracted_text"}}
-    response["workflow_id"] = workflow.workflow_id
-    response["profile_status"] = profile_status
-    response["workflow_status"] = workflow_status
-    response["message"] = "Resume uploaded successfully and workflow initiated."
-    
-    return response
+    # Build response with full parsed profile visible to frontend
+    profile = payload.get("parsed_profile", {})
+
+    return {
+        "resume_id": payload["resume_id"],
+        "student_id": student_id,
+        "file_name": payload["file_name"],
+        "workflow_id": workflow.workflow_id,
+        "profile_status": extraction_status,
+        "workflow_status": workflow_status,
+        "message": "Resume uploaded successfully and workflow initiated.",
+        "parsed_profile": profile,
+    }

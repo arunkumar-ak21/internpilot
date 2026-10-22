@@ -12,8 +12,8 @@ class AdzunaProvider(OpportunityProvider):
 
     def __init__(self, app_id: str | None = None, app_key: str | None = None):
         settings = get_settings()
-        self.app_id = app_id or settings.adzuna_app_id
-        self.app_key = app_key or settings.adzuna_app_key
+        self.app_id = settings.adzuna_app_id if app_id is None else app_id
+        self.app_key = settings.adzuna_app_key if app_key is None else app_key
         
         if not self.app_id or not self.app_key:
             # We don't fail on init, but we will fail on search if credentials are missing

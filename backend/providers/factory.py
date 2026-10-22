@@ -8,25 +8,23 @@ from backend.providers.tavily_search import TavilyProvider
 from typing import List
 
 class CompositeProvider:
+    """Runs multiple providers concurrently and merges results."""
     def __init__(self, providers: List[OpportunityProvider]):
-        self.providers = [p for p in providers if getattr(p, "_configured", True)]
+        self.providers = list(providers)
 
     async def search(self, criteria: SearchCriteria) -> SearchResult:
         if not self.providers:
             return SearchResult(status="search_failed", results=[], provider_outcomes=[], errors=["No configured providers available."])
-        
+
         provider_outcomes = []
         errors = []
-        
+
         async def fetch_provider(provider: OpportunityProvider):
             outcome = ProviderOutcomeResult(
                 provider_name=provider.__class__.__name__,
-                attempted=True,
-                result_count=0,
-                status="failed"
+                attempted=True, result_count=0, status="failed"
             )
             try:
-                # Wrap each provider in a bounded timeout
                 results = await asyncio.wait_for(provider.search(criteria), timeout=20.0)
                 outcome.result_count = len(results)
                 outcome.status = "success" if results else "no_results"
@@ -40,35 +38,31 @@ class CompositeProvider:
 
         tasks = [fetch_provider(p) for p in self.providers]
         fetched_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         all_results = []
-        
         for r in fetched_results:
             if isinstance(r, Exception):
                 errors.append(f"Unexpected gather error: {r}")
                 continue
-                
             outcome, results = r
             provider_outcomes.append(outcome)
             if outcome.error:
                 errors.append(f"{outcome.provider_name} failed: {outcome.error}")
             if results:
                 all_results.extend(results)
-                
-        # Deduplicate based on application_url or canonical source_id
+
+        # Deduplicate
         seen_keys = set()
         deduplicated = []
         for opp in all_results:
-            # Prefer canonical source_id if present
-            key = opp.source_id if opp.source_id else (opp.application_url if opp.application_url else f"{opp.company.lower()}:{opp.role.lower()}")
+            key = opp.application_url if opp.application_url else (opp.source_id if opp.source_id else f"{opp.company.lower()}:{opp.role.lower()}")
             if key not in seen_keys:
                 seen_keys.add(key)
                 deduplicated.append(opp)
-                
-        # Determine overall status
+
         success_count = sum(1 for o in provider_outcomes if o.status == "success")
         failed_count = sum(1 for o in provider_outcomes if o.status == "failed")
-        
+
         if success_count == len(self.providers):
             status = "success" if deduplicated else "no_results"
         elif success_count > 0:
@@ -77,26 +71,39 @@ class CompositeProvider:
             status = "search_failed"
         else:
             status = "no_results"
-                
-        return SearchResult(
-            status=status,
-            results=deduplicated,
-            provider_outcomes=provider_outcomes,
-            errors=errors
-        )
 
-def get_provider(provider_name: str | None = None) -> CompositeProvider:
+        return SearchResult(status=status, results=deduplicated, provider_outcomes=provider_outcomes, errors=errors)
+
+
+def get_composite_provider() -> CompositeProvider:
+    """Build a CompositeProvider with all configured providers and mock fallback."""
+    providers: List[OpportunityProvider] = [MockOpportunityProvider()]
+    
+    adzuna = AdzunaProvider()
+    if adzuna._configured:
+        providers.append(adzuna)
+
+    tavily = TavilyProvider()
+    if tavily._configured:
+        providers.append(tavily)
+
+    return CompositeProvider(providers)
+
+
+def get_provider(provider_name: str | None = None) -> OpportunityProvider | CompositeProvider:
     """
     Get an instance of the requested opportunity provider.
-    If no name is provided, uses the one from application settings.
+    If 'mock' or 'adzuna' or 'tavily' is requested explicitly, returns that provider.
+    Otherwise returns a CompositeProvider.
     """
     settings = get_settings()
-    name = provider_name or settings.opportunity_provider
+    name = (provider_name or settings.opportunity_provider).lower()
 
-    if name.lower() == "mock":
-        return CompositeProvider([MockOpportunityProvider()])
-        
-    adzuna = AdzunaProvider()
-    tavily = TavilyProvider()
-    
-    return CompositeProvider([adzuna, tavily])
+    if name == "mock":
+        return MockOpportunityProvider()
+    elif name == "adzuna":
+        return AdzunaProvider()
+    elif name == "tavily":
+        return TavilyProvider()
+    else:
+        return get_composite_provider()

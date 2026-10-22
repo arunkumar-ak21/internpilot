@@ -43,7 +43,7 @@ async def calculator(request: CalculatorRequest) -> dict:
 
 @router.post("/search")
 async def search(request: SearchRequest) -> dict:
-    results = await search_opportunities(request.query, request.location, request.max_results)
+    results = await search_opportunities(request.query, request.location, request.max_results, provider_name="mock")
     await _audit("search_opportunities", "success", {"count": len(results), "source": "mock"})
     return {"opportunities": results, "source": "mock", "notice": "Mock development data; not real listings."}
 

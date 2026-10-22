@@ -23,3 +23,12 @@ class ResumeRepository:
             if row:
                 return json.loads(row["parsed_profile_json"])
             return None
+
+    async def get_by_id(self, resume_id: str) -> dict | None:
+        async with aiosqlite.connect(self.database_path) as connection:
+            connection.row_factory = aiosqlite.Row
+            cursor = await connection.execute("SELECT parsed_profile_json FROM resumes WHERE resume_id = ? LIMIT 1", (resume_id,))
+            row = await cursor.fetchone()
+            if row:
+                return json.loads(row["parsed_profile_json"])
+            return None
