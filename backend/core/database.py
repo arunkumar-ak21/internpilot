@@ -1,4 +1,4 @@
-"""SQLite lifecycle management for the initial InternPilot backend."""
+"""SQLite lifecycle management for the InternPilot backend."""
 
 from __future__ import annotations
 
@@ -149,6 +149,9 @@ CREATE TABLE IF NOT EXISTS evaluations (
     approved_by TEXT,
     evaluated_at TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_resumes_student_created ON resumes(student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_matches_student_score ON opportunity_matches(student_id, overall_score DESC);
+CREATE INDEX IF NOT EXISTS idx_workflows_student ON agent_workflows(student_id, updated_at DESC);
 """
 
 

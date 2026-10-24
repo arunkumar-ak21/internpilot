@@ -1,31 +1,50 @@
-"""Factory for instantiating opportunity providers based on configuration."""
+"""Factory for instantiating live API opportunity providers for MCP."""
+
+from __future__ import annotations
+
 import asyncio
-from backend.core.config import get_settings
-from backend.providers.base import OpportunityProvider, SearchCriteria, RawOpportunity, SearchResult, ProviderOutcomeResult
-from backend.providers.mock import MockOpportunityProvider
-from backend.providers.adzuna import AdzunaProvider
-from backend.providers.tavily_search import TavilyProvider
 from typing import List
 
+from backend.core.config import get_settings
+from backend.providers.adzuna import AdzunaProvider
+from backend.providers.base import (
+    OpportunityProvider,
+    ProviderOutcomeResult,
+    RawOpportunity,
+    SearchCriteria,
+    SearchResult,
+)
+from backend.providers.mock import MockOpportunityProvider
+from backend.providers.tavily_search import TavilyProvider
+
+
 class CompositeProvider:
-    """Runs multiple providers concurrently and merges results."""
+    """Runs configured live API providers concurrently and deduplicates results."""
+
     def __init__(self, providers: List[OpportunityProvider]):
         self.providers = list(providers)
 
     async def search(self, criteria: SearchCriteria) -> SearchResult:
         if not self.providers:
-            return SearchResult(status="search_failed", results=[], provider_outcomes=[], errors=["No configured providers available."])
+            return SearchResult(
+                status="search_failed",
+                results=[],
+                provider_outcomes=[],
+                errors=["No configured providers available."],
+            )
 
-        provider_outcomes = []
-        errors = []
+        provider_outcomes: List[ProviderOutcomeResult] = []
+        errors: List[str] = []
 
         async def fetch_provider(provider: OpportunityProvider):
             outcome = ProviderOutcomeResult(
                 provider_name=provider.__class__.__name__,
-                attempted=True, result_count=0, status="failed"
+                attempted=True,
+                result_count=0,
+                status="failed",
             )
             try:
-                results = await asyncio.wait_for(provider.search(criteria), timeout=20.0)
+                results = await asyncio.wait_for(provider.search(criteria), timeout=15.0)
                 outcome.result_count = len(results)
                 outcome.status = "success" if results else "no_results"
                 return outcome, results
@@ -39,7 +58,7 @@ class CompositeProvider:
         tasks = [fetch_provider(p) for p in self.providers]
         fetched_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        all_results = []
+        all_results: List[RawOpportunity] = []
         for r in fetched_results:
             if isinstance(r, Exception):
                 errors.append(f"Unexpected gather error: {r}")
@@ -51,11 +70,14 @@ class CompositeProvider:
             if results:
                 all_results.extend(results)
 
-        # Deduplicate
         seen_keys = set()
-        deduplicated = []
+        deduplicated: List[RawOpportunity] = []
         for opp in all_results:
-            key = opp.application_url if opp.application_url else (opp.source_id if opp.source_id else f"{opp.company.lower()}:{opp.role.lower()}")
+            key = (
+                opp.application_url.strip()
+                if (opp.application_url and opp.application_url.strip())
+                else f"{opp.company.lower().strip()}:{opp.role.lower().strip()}"
+            )
             if key not in seen_keys:
                 seen_keys.add(key)
                 deduplicated.append(opp)
@@ -72,13 +94,21 @@ class CompositeProvider:
         else:
             status = "no_results"
 
-        return SearchResult(status=status, results=deduplicated, provider_outcomes=provider_outcomes, errors=errors)
+        return SearchResult(
+            status=status,
+            results=deduplicated,
+            provider_outcomes=provider_outcomes,
+            errors=errors,
+        )
 
 
 def get_composite_provider() -> CompositeProvider:
-    """Build a CompositeProvider with all configured providers and mock fallback."""
-    providers: List[OpportunityProvider] = [MockOpportunityProvider()]
-    
+    """
+    Build a CompositeProvider using ONLY live configured APIs (Adzuna / Tavily).
+    MockOpportunityProvider is NEVER mixed in when a real API key is configured.
+    """
+    providers: List[OpportunityProvider] = []
+
     adzuna = AdzunaProvider()
     if adzuna._configured:
         providers.append(adzuna)
@@ -87,15 +117,15 @@ def get_composite_provider() -> CompositeProvider:
     if tavily._configured:
         providers.append(tavily)
 
+    # Only fallback to Mock if zero real API keys exist (e.g., offline CI unit tests)
+    if not providers:
+        providers.append(MockOpportunityProvider())
+
     return CompositeProvider(providers)
 
 
 def get_provider(provider_name: str | None = None) -> OpportunityProvider | CompositeProvider:
-    """
-    Get an instance of the requested opportunity provider.
-    If 'mock' or 'adzuna' or 'tavily' is requested explicitly, returns that provider.
-    Otherwise returns a CompositeProvider.
-    """
+    """Return the requested opportunity provider."""
     settings = get_settings()
     name = (provider_name or settings.opportunity_provider).lower()
 

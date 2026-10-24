@@ -14,7 +14,7 @@ class Resource(BaseModel):
 
 
 class Connector(ABC):
-    """Base interface for all connectors."""
+    """Base interface for all MCP-style connectors."""
 
     @abstractmethod
     def get_name(self) -> str:

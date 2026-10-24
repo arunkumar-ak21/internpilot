@@ -1,15 +1,8 @@
 """
 InternPilot — Domain Models
 
-Pydantic models for all core entities. These serve as:
-1. API request/response schemas (FastAPI integration)
-2. Validation layer for all data
-3. Documentation of the data contract
-
-Design notes:
-- UUIDs as primary keys for future distribution readiness
-- Optional fields where data may be incomplete
-- Strict validation via Pydantic v2
+Pydantic models for all core entities, enriched internship recommendations,
+multi-agent trace logs, and context-aware conversational state.
 """
 
 from __future__ import annotations
@@ -17,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, date
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -224,6 +217,8 @@ class OpportunityBase(BaseModel):
     location: Optional[str] = None
     work_mode: Optional[WorkMode] = None
     stipend: Optional[str] = None
+    stipend_numeric: Optional[int] = Field(None, description="Monthly stipend in INR for comparison")
+    role_category: Optional[str] = Field(None, description="e.g. Full-Stack, AI/ML, Backend, DevOps")
     duration: Optional[str] = None
     deadline: Optional[date] = None
     eligibility_requirements: Optional[dict] = None
@@ -249,7 +244,7 @@ class Opportunity(OpportunityBase):
 
 
 # =============================================
-# Opportunity Match
+# Opportunity Match & Ranked Internship
 # =============================================
 
 class OpportunityMatch(BaseModel):
@@ -257,6 +252,7 @@ class OpportunityMatch(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_id: str
     opportunity_id: str
+    rank: Optional[int] = Field(None, description="1-based rank index on the dashboard")
     eligibility: EligibilityStatus = EligibilityStatus.UNKNOWN
     eligibility_reason: Optional[str] = None
     skill_match: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -265,6 +261,7 @@ class OpportunityMatch(BaseModel):
     preference_match: Optional[float] = Field(None, ge=0.0, le=1.0)
     deadline_risk: Optional[DeadlineRisk] = None
     overall_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    matched_skills: Optional[list[str]] = None
     missing_skills: Optional[list[str]] = None
     explanation: Optional[str] = None
     calculated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -272,8 +269,33 @@ class OpportunityMatch(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RankedInternship(BaseModel):
+    """Unified representation of a ranked internship for UI and Chat Assistant context."""
+    rank: int = Field(..., description="1-based index (#1, #2, #3...)")
+    opportunity_id: str
+    company: str
+    role: str
+    role_category: str = "Software Engineering"
+    location: str = "Remote / India"
+    work_mode: str = "remote"
+    stipend: str = "Competitive"
+    stipend_numeric: int = 0
+    duration: str = "3-6 Months"
+    description: str = ""
+    required_skills: list[str] = Field(default_factory=list)
+    matched_skills: list[str] = Field(default_factory=list)
+    missing_skills: list[str] = Field(default_factory=list)
+    match_score: float = Field(0.0, description="0.0 to 1.0 or percentage")
+    match_percentage: int = Field(0, description="0 to 100 integer score")
+    eligibility: str = "PASS"
+    eligibility_reason: str = ""
+    explanation: str = ""
+    application_url: str = ""
+    source: str = "mcp_discovery"
+
+
 # =============================================
-# Application
+# Application, Progress & Evaluation
 # =============================================
 
 class ApplicationBase(BaseModel):
@@ -298,10 +320,6 @@ class Application(ApplicationBase):
     model_config = {"from_attributes": True}
 
 
-# =============================================
-# Progress
-# =============================================
-
 class Progress(BaseModel):
     """Internship milestone progress."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -315,10 +333,6 @@ class Progress(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
-# =============================================
-# Evaluation
-# =============================================
 
 class Evaluation(BaseModel):
     """Final internship evaluation."""
@@ -337,7 +351,7 @@ class Evaluation(BaseModel):
 
 
 # =============================================
-# Audit Event
+# Audit Event, Workflow & Conversational State
 # =============================================
 
 class AuditEvent(BaseModel):
@@ -360,10 +374,6 @@ class AuditEvent(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# =============================================
-# Agent Workflow
-# =============================================
-
 class AgentWorkflow(BaseModel):
     workflow_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     student_id: str
@@ -379,13 +389,26 @@ class AgentWorkflow(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# =============================================
-# Provider Outcome
-# =============================================
-
 class ProviderOutcome(BaseModel):
     provider_name: str
     attempted: bool
     result_count: int
     status: str = Field(..., description="success / failed / no_results")
     error: Optional[str] = None
+
+
+class AgentTraceStep(BaseModel):
+    """Single step in the multi-agent execution trace."""
+    agent: str
+    action: str
+    detail: str
+    status: str = "completed"
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
+class ChatMessage(BaseModel):
+    """Message in the conversational assistant history."""
+    role: str = Field(..., description="user or assistant")
+    content: str
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    metadata: Optional[dict[str, Any]] = None

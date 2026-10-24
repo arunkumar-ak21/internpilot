@@ -1,8 +1,8 @@
 """
 InternPilot — Application Configuration
 
-Loads settings from environment variables with sensible defaults
-for local development. Uses pydantic-settings for type-safe config.
+Loads settings from environment variables with support for Groq, OpenRouter,
+Adzuna Live API, Tavily Search API, and MCP Connectors.
 """
 
 from __future__ import annotations
@@ -17,9 +17,6 @@ from dotenv import load_dotenv
 # Force .env file to override OS environment variables
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=True)
 
-
-# ---- Paths ----
-# Project root is one level up from backend/
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BACKEND_DIR.parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -30,19 +27,23 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # ---- Application ----
-    app_env: str = Field(default="development", description="Environment name")
-    app_debug: bool = Field(default=True, description="Enable debug mode")
-    app_host: str = Field(default="0.0.0.0", description="Server bind host")
-    app_port: int = Field(default=8000, description="Server bind port")
+    app_env: str = Field(default="development")
+    app_debug: bool = Field(default=True)
+    app_host: str = Field(default="0.0.0.0")
+    app_port: int = Field(default=8000)
 
-    # ---- LLM ----
-    llm_provider: str = Field(default="groq", description="LLM provider name")
-    llm_model: str = Field(default="llama3-70b-8192", description="LLM model name")
+    # ---- LLM Brain (Groq / OpenRouter / Gemini / Ollama) ----
+    llm_provider: str = Field(default="groq", description="groq, openrouter, gemini, or ollama")
+    llm_model: str = Field(default="llama-3.3-70b-versatile", description="Active LLM model name")
     groq_api_key: str = Field(default="", description="Groq API Key")
-    llm_base_url: str = Field(
-        default="http://localhost:11434", description="LLM API base URL"
+    openrouter_api_key: str = Field(default="", description="OpenRouter API Key")
+    openrouter_model: str = Field(
+        default="meta-llama/llama-3.3-70b-instruct",
+        description="Default OpenRouter model",
     )
-    llm_timeout: float = Field(default=30.0, description="Global LLM timeout in seconds")
+    gemini_api_key: str = Field(default="", description="Google Gemini API Key")
+    llm_base_url: str = Field(default="http://localhost:11434")
+    llm_timeout: float = Field(default=25.0)
 
     # ---- Database ----
     database_url: str = Field(
@@ -50,22 +51,21 @@ class Settings(BaseSettings):
         description="Database connection URL",
     )
 
-    # ---- Opportunity Providers ----
+    # ---- Opportunity Providers & MCP ----
     opportunity_provider: str = Field(
-        default="mock", description="Configured opportunity provider (mock, adzuna)"
+        default="adzuna", description="adzuna, tavily, or mock (for unit tests only)"
     )
-    adzuna_app_id: str = Field(default="", description="Adzuna App ID")
-    adzuna_app_key: str = Field(default="", description="Adzuna App Key")
-    tavily_api_key: str = Field(default="", description="Tavily API Key for Web Search")
+    adzuna_app_id: str = Field(default="")
+    adzuna_app_key: str = Field(default="")
+    tavily_api_key: str = Field(default="")
+    mcp_enabled: bool = Field(default=True)
 
     # ---- Frontend ----
-    frontend_port: int = Field(default=5173, description="Frontend dev server port")
-    frontend_url: str = Field(
-        default="http://localhost:5173", description="Frontend URL for CORS"
-    )
+    frontend_port: int = Field(default=5173)
+    frontend_url: str = Field(default="http://localhost:5173")
 
     # ---- Observability ----
-    log_level: str = Field(default="INFO", description="Application log level")
+    log_level: str = Field(default="INFO")
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),
@@ -77,5 +77,5 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Return cached application settings (singleton)."""
+    """Return cached application settings."""
     return Settings()
